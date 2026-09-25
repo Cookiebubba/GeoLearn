@@ -1,0 +1,27 @@
+{
+  "name": "@geolearn/geo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fetch": "tsx src/fetch.ts",
+    "prepare-data": "python3 scripts/prepare.py",
+    "build": "tsx src/build.ts",
+    "preview": "tsx src/preview.ts"
+  },
+  "devDependencies": {
+    "@geolearn/shared": "*",
+    "@napi-rs/canvas": "^1.0.9",
+    "@types/d3-geo": "^3.1.0",
+    "@types/topojson-client": "^3.1.5",
+    "@types/topojson-server": "^3.0.4",
+    "@types/topojson-simplify": "^3.0.3",
+    "d3-geo": "^3.1.1",
+    "d3-geo-projection": "^4.0.0",
+    "polylabel": "^2.1.0",
+    "topojson-client": "^3.1.0",
+    "topojson-server": "^3.0.1",
+    "topojson-simplify": "^3.0.3",
+    "tsx": "^4.23.15"
+  }
+}

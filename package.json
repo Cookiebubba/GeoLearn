@@ -1,0 +1,30 @@
+{
+  "name": "geolearn",
+  "private": true,
+  "version": "0.1.0",
+  "description": "GeoLearn — calm, multiplayer geography games. First game: Map Puzzle.",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c blue,magenta \"npm:dev -w @geolearn/server\" \"npm:dev -w @geolearn/web\"",
+    "build": "npm run build -w @geolearn/web && npm run build -w @geolearn/server",
+    "start": "npm run start -w @geolearn/server",
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/shared && tsc -p apps/server && tsc -p apps/web",
+    "geo:build": "npm run build -w @geolearn/geo",
+    "db:generate": "npm run db:generate -w @geolearn/server",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5",
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  }
+}
