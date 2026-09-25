@@ -791,6 +791,25 @@ export class Renderer {
     }
     ctx.globalAlpha = 1;
 
+    // Points scored: rise and fade just above the country.
+    for (const f of fx.floaters) {
+      const k = f.t / f.dur;
+      const alpha = Math.min(1, f.t / 0.15) * (1 - Math.max(0, (k - 0.7) / 0.3));
+      const x = sx(v, f.x);
+      const y = sy(v, f.y) - 12 - 30 * easeOutCubic(k);
+      ctx.globalAlpha = alpha;
+      ctx.font = `750 17px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.strokeText(f.text, x, y);
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.text, x, y);
+    }
+    ctx.globalAlpha = 1;
+
     const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
     for (const t of fx.toasts) {
       const p = t.piece;

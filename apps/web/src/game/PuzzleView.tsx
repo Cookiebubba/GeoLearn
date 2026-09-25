@@ -120,7 +120,9 @@ export function PuzzleView({ room, you, onLeave }: { room: RoomSnapshot; you: st
       onGrabbed: (p, by, m) => engine.onGrabbed(p, by, m),
       onDenied: (p) => engine.onDenied(p),
       onMoved: (p, x, y, by) => engine.onMoved(p, x, y, by),
-      onDropped: (p, x, y, z, by, placed, miss) => engine.onDropped(p, x, y, z, by, placed, miss),
+      // Points only mean something in Versus and Teams.
+      onDropped: (p, x, y, z, by, placed, miss, points) =>
+        engine.onDropped(p, x, y, z, by, placed, miss, useRoomStore.getState().room?.settings.mode === 'coop' ? 0 : points),
       onCursor: (id, x, y) => engine.onCursor(id, x, y),
     };
     roomClient.setListener(listener);

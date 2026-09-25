@@ -340,9 +340,14 @@ export class PuzzleEngine {
     this.requestFrame();
   }
 
-  onDropped(pieceId: string, x: number, y: number, z: number, by: string, placed: boolean, miss: boolean) {
+  onDropped(pieceId: string, x: number, y: number, z: number, by: string, placed: boolean, miss: boolean, points = 0) {
     const p = this.pieces.get(pieceId);
     if (!p) return;
+    // Versus: the server confirms what our placement scored.
+    if (by === this.you && placed && points > 0) {
+      this.effects.float(p, `+${points}`, '#2c8a7e');
+      this.requestFrame();
+    }
     this.zCounter = Math.max(this.zCounter, z);
     if (by === this.you && this.hold?.piece !== p) {
       // Our own drop, confirmed. Reconcile the optimistic prediction.

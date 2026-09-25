@@ -27,16 +27,32 @@ interface Toast {
   dur: number;
 }
 
+/** A little number that drifts up from a piece (points scored). */
+interface Floater {
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  t: number;
+  dur: number;
+}
+
 /** Short-lived visual rewards: outline ripples, drifting sparks and name toasts. */
 export class Effects {
   ripples: Ripple[] = [];
   particles: Particle[] = [];
   toasts: Toast[] = [];
+  floaters: Floater[] = [];
   /** Completion light sweep, 0..1 (or -1 when idle). */
   sweep = -1;
 
   get active(): boolean {
-    return this.ripples.length > 0 || this.particles.length > 0 || this.toasts.length > 0 || this.sweep >= 0;
+    return this.ripples.length > 0 || this.particles.length > 0 || this.toasts.length > 0 || this.floaters.length > 0 || this.sweep >= 0;
+  }
+
+  float(piece: ScenePiece, text: string, color: string) {
+    const [lx, ly] = piece.model.label;
+    this.floaters.push({ x: piece.model.tx + lx, y: piece.model.ty + ly, text, color, t: 0, dur: 1.5 });
   }
 
   snap(piece: ScenePiece, zoom: number, strong: boolean) {
@@ -90,6 +106,8 @@ export class Effects {
     this.particles = this.particles.filter((p) => p.life < p.max);
     for (const t of this.toasts) t.t += dt;
     this.toasts = this.toasts.filter((t) => t.t < t.dur);
+    for (const f of this.floaters) f.t += dt;
+    this.floaters = this.floaters.filter((f) => f.t < f.dur);
     if (this.sweep >= 0) {
       this.sweep += dt / 1.8;
       if (this.sweep >= 1) this.sweep = -1;
@@ -100,6 +118,7 @@ export class Effects {
     this.ripples = [];
     this.particles = [];
     this.toasts = [];
+    this.floaters = [];
     this.sweep = -1;
   }
 }
