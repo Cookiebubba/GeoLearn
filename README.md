@@ -109,7 +109,7 @@ GeoLearn is one Node process that serves the website, the REST API and the WebSo
 3. In the GeoLearn service, open **Variables** and add `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`.
 4. Go to **Settings → Networking → Generate Domain.** You don't need to set a port, because Railway provides `PORT` and the server listens on it.
 
-If you skip Postgres, the app still runs on PGlite, but the data is wiped on every redeploy. You can keep it by attaching a Railway volume and setting `DATA_DIR` to the volume's mount path, for example `/data/pglite`.
+If you skip Postgres, the app still runs on PGlite, but the data is wiped on every redeploy. You can keep it by attaching a Railway volume and setting `DATA_DIR` to a folder on it, for example `/data/pglite`. The image runs as the unprivileged `node` user, and Railway mounts volumes owned by root. If the logs show a permission error, add the variable `RAILWAY_RUN_UID=0`.
 
 ### Supabase (as the database)
 
