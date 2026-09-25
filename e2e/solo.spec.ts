@@ -7,11 +7,15 @@ test('solo: finish Oceania with a finger and see the results', async ({ page, co
   await page.getByRole('button', { name: /Oceania/ }).click();
   await waitForPlay(page);
   await expect(page.locator('.progress-pill')).toContainText('0 / 15');
+  // A first-time player gets a gentle hint, which steps aside once they've placed a country.
+  const hint = page.getByText('Drag each country to where it belongs');
+  await expect(hint).toBeVisible();
 
   const ids = await page.evaluate(() => window.__geolearn!.engine.pieceIds);
   let placed = 0;
   for (const id of ids) {
     if (await touchPlace(page, context, id)) placed++;
+    if (placed === 1) await expect(hint).toBeHidden();
   }
   expect(placed).toBe(15);
   await expect(page.locator('.progress-pill')).toContainText('15 / 15');

@@ -25,6 +25,10 @@ export interface EngineCallbacks {
   progress?(placed: number, total: number): void;
   /** A piece clicked into place. */
   placed?(pieceId: string, byMe: boolean): void;
+  /** This player let go of a piece somewhere other than its home. */
+  dropped?(onBoard: boolean): void;
+  /** This player zoomed (pinch, wheel, keys or double-tap). */
+  userZoom?(): void;
   /** The whole map is complete (local detection, before the server confirms). */
   complete?(): void;
   /** Camera zoom changed (for the zoom controls). */

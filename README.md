@@ -32,6 +32,7 @@ The first game is **Map Puzzle**. You get an empty continent and every country i
 - **Real-time multiplayer.** You see other players' pieces move, with a name tag in their colour. A piece is locked while someone is holding it. If the host leaves, another player becomes host. If you drop off, you reconnect to the same seat.
 - **Built for phones first**, including the 320 px wide iPhone SE. Hold a piece with one finger and use other fingers to pan and pinch-zoom while you carry it.
 - **Feels like a real table.** Pieces lift with a soft shadow, click into place with a small ripple, and a wave of light rolls across the map when it's finished. The sounds are generated with Web Audio, so there are no sample files.
+- **First-game tips.** New players get one short line at a time, once per device: drag to place, pinch while holding, and press and hold to lift a piece off the board.
 - **Visibility menu.** You can show names, capitals and flags on the pieces. All three are off by default. When a country clicks into place, its name and capital are revealed.
 - **Eight palettes:** Atlas, Blossom, Ocean, Meadow, Sunset, Vintage, Candy and Stone.
 - **Leaderboards** per map and party size, for all time or this week (see [Scoring](#modes-scoring--leaderboards)).

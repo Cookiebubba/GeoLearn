@@ -522,6 +522,7 @@ export class PuzzleEngine {
       const onLand = this.model.silhouette.contains(lx, ly);
       if (onLand) this.sound.miss(this.panOf(p));
       else this.sound.drop(this.panOf(p), this.isOnBoard(p));
+      if (!cancelled) this.callbacks.dropped?.(this.isOnBoard(p));
     }
     this.callbacks.drop(p.id, x, y, zoom);
     this.callbacks.cursor(null, null);
@@ -574,6 +575,11 @@ export class PuzzleEngine {
 
   unlockAudio() {
     this.sound.unlock();
+  }
+
+  /** Input reports a zoom gesture (used for first-game tips). */
+  userZoomed() {
+    this.callbacks.userZoom?.();
   }
 
   /** A tap (no drag, no hold) on a piece lying on the board. */

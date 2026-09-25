@@ -10,6 +10,7 @@ import { PuzzleEngine } from './engine/PuzzleEngine';
 import { formatTime } from './format';
 import { PaletteMenu, SoundButton, VisibilityMenu } from './HudMenus';
 import { Results } from './Results';
+import { Coach, useCoach } from './Coach';
 
 function useSafeAreas() {
   const [s, setS] = useState({ top: 0, bottom: 0 });
@@ -71,6 +72,8 @@ export function PuzzleView({ room, you, onLeave }: { room: RoomSnapshot; you: st
   const safe = useSafeAreas();
   const puzzleId = room.settings.puzzleId;
   const status = room.status;
+  const coach = useCoach(status === 'playing');
+  const coachEvents = coach.events;
 
   // Puzzle geometry.
   useEffect(() => {
@@ -105,6 +108,9 @@ export function PuzzleView({ room, you, onLeave }: { room: RoomSnapshot; you: st
           drop: (p, x, y, z) => roomClient.send({ t: 'drop', p, x, y, z }),
           cursor: (x, y) => roomClient.send({ t: 'cursor', x, y }),
           progress: (placed, total) => setProgress({ placed, total }),
+          placed: (_p, byMe) => coachEvents.current.placed(byMe),
+          dropped: (onBoard) => coachEvents.current.dropped(onBoard),
+          userZoom: () => coachEvents.current.zoomed(),
         },
       },
     );
@@ -278,16 +284,32 @@ export function PuzzleView({ room, you, onLeave }: { room: RoomSnapshot; you: st
       )}
 
       <div className="hud-zoom">
-        <button className="icon-btn zoom-step" aria-label="Zoom in" onClick={() => engineRef.current?.zoomBy(1.6)}>
+        <button
+          className="icon-btn zoom-step"
+          aria-label="Zoom in"
+          onClick={() => {
+            engineRef.current?.zoomBy(1.6);
+            coachEvents.current.zoomed();
+          }}
+        >
           <Plus size={19} />
         </button>
-        <button className="icon-btn zoom-step" aria-label="Zoom out" onClick={() => engineRef.current?.zoomBy(1 / 1.6)}>
+        <button
+          className="icon-btn zoom-step"
+          aria-label="Zoom out"
+          onClick={() => {
+            engineRef.current?.zoomBy(1 / 1.6);
+            coachEvents.current.zoomed();
+          }}
+        >
           <Minus size={19} />
         </button>
         <button className="icon-btn" aria-label="Show everything" onClick={() => engineRef.current?.fitTable()}>
           <LocateFixed size={18} />
         </button>
       </div>
+
+      {status === 'playing' && <Coach tip={coach.tip} />}
 
       {countdown !== null && countdown > 0 && (
         <div className="countdown" key={countdown}>

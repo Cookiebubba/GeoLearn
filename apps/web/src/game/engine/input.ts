@@ -269,6 +269,7 @@ export class InputController {
       if (this.gesture && this.gesture.key === key) {
         cam.zoomAt(this.gesture.mx, this.gesture.my, dist / this.gesture.dist);
         cam.panBy(mx - this.gesture.mx, my - this.gesture.my);
+        if (Math.abs(dist / this.gesture.dist - 1) > 0.002) this.engine.userZoomed();
       }
       this.gesture = { key, dist, mx, my };
       this.samples = [];
@@ -316,6 +317,7 @@ export class InputController {
     const last = this.lastTap;
     if (last && now - last.t < 320 && Math.hypot(p.x - last.x, p.y - last.y) < 36) {
       this.engine.camera.zoomSmooth(p.x, p.y, 2);
+      this.engine.userZoomed();
       this.lastTap = null;
     } else {
       this.lastTap = { t: now, x: p.x, y: p.y };
@@ -387,10 +389,12 @@ export class InputController {
     if (e.ctrlKey) {
       // Trackpad pinch.
       cam.zoomAt(x, y, Math.exp(-e.deltaY * 0.012));
+      this.engine.userZoomed();
     } else if (e.deltaMode === 1 || (e.deltaX === 0 && Math.abs(e.deltaY) >= 40 && Number.isInteger(e.deltaY))) {
       // Mouse wheel notches.
       const notches = e.deltaMode === 1 ? e.deltaY / 3 : e.deltaY / 100;
       cam.zoomSmooth(x, y, Math.pow(1.28, -Math.max(-3, Math.min(3, notches))));
+      this.engine.userZoomed();
     } else {
       // Two-finger trackpad scroll pans.
       cam.panBy(-e.deltaX, -e.deltaY);
@@ -407,10 +411,12 @@ export class InputController {
       case '+':
       case '=':
         this.engine.zoomBy(1.5);
+        this.engine.userZoomed();
         break;
       case '-':
       case '_':
         this.engine.zoomBy(1 / 1.5);
+        this.engine.userZoomed();
         break;
       case '0':
         this.engine.fitTable();

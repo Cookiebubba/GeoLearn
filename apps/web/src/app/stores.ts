@@ -93,3 +93,21 @@ export const useBests = create<BestsState>()(
     { name: 'geolearn.bests', storage: safeStorage },
   ),
 );
+
+export type TipId = 'drag' | 'zoom' | 'lift';
+
+/** One-time gameplay tips this device has already seen. */
+interface TipsState {
+  seen: Partial<Record<TipId, true>>;
+  markSeen(id: TipId): void;
+}
+
+export const useTips = create<TipsState>()(
+  persist(
+    (set) => ({
+      seen: {},
+      markSeen: (id) => set((s) => (s.seen[id] ? s : { seen: { ...s.seen, [id]: true } })),
+    }),
+    { name: 'geolearn.tips', storage: safeStorage },
+  ),
+);
