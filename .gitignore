@@ -14,3 +14,4 @@ packages/geo/previews/
 apps/web/public/flags/
 *.tsbuildinfo
 .shot*.mjs
+playwright-report/

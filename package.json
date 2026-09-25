@@ -16,10 +16,11 @@
     "build": "npm run build -w @geolearn/web && npm run build -w @geolearn/server",
     "start": "npm run start -w @geolearn/server",
     "test": "vitest run",
-    "typecheck": "tsc -p packages/shared && tsc -p apps/server && tsc -p apps/web",
+    "typecheck": "tsc -p packages/shared && tsc -p packages/geo && tsc -p apps/server && tsc -p apps/web && tsc -p e2e",
     "geo:build": "npm run build -w @geolearn/geo",
     "db:generate": "npm run db:generate -w @geolearn/server",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:e2e": "playwright test -c e2e/playwright.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
