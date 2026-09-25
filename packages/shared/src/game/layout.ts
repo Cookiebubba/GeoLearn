@@ -30,35 +30,99 @@ class RectHash {
       }
     }
   }
-  hits(r: Rect): boolean {
-    for (let cx = Math.floor(r.x0 / this.size); cx <= Math.floor(r.x1 / this.size); cx++) {
-      for (let cy = Math.floor(r.y0 / this.size); cy <= Math.floor(r.y1 / this.size); cy++) {
+  /** The first placed rect overlapping `r`, if any. */
+  firstHit(r: Rect): Rect | null {
+    const cx1 = Math.floor(r.x1 / this.size);
+    const cy1 = Math.floor(r.y1 / this.size);
+    for (let cx = Math.floor(r.x0 / this.size); cx <= cx1; cx++) {
+      for (let cy = Math.floor(r.y0 / this.size); cy <= cy1; cy++) {
         const list = this.cells.get(this.key(cx, cy));
         if (!list) continue;
-        for (const o of list) if (r.x0 < o.x1 && r.x1 > o.x0 && r.y0 < o.y1 && r.y1 > o.y0) return true;
+        for (const o of list) if (r.x0 < o.x1 && r.x1 > o.x0 && r.y0 < o.y1 && r.y1 > o.y0) return o;
       }
     }
-    return false;
+    return null;
   }
 }
+
+/** Smallest footprint a piece gets on the table, as a fraction of the board width. */
+const MIN_FOOT = 0.026;
+/** Share of the free table area that footprints (with their gaps) may take. */
+const FILL = 0.6;
+/** How far small pieces may be spread out when the table has room to spare. */
+const MAX_SPREAD = 3.2;
+/** How strongly pieces prefer the emptier sides of the board. */
+const SIDE_WEIGHT = 0.6;
 
 /**
  * Lays every piece out around the empty board, upright and without overlaps.
  *
- * Largest pieces go first. Each piece considers free spots on rings around the
- * board and takes the cheapest: close to the board, not growing the table (so
- * gaps get filled and the whole table fits a phone screen nicely), and keeping
- * the four sides evenly stocked.
+ * First the table is framed: the board plus a band on every side, shaped like
+ * the players' screens (portrait phones get deep bands above and below), and
+ * just big enough for the pieces. If there is room to spare, small pieces are
+ * spaced further apart so they stay easy to see and grab.
+ *
+ * Then, largest first, each piece considers free spots on rings around the
+ * board and takes the cheapest: close to the board, inside the frame, and
+ * keeping every side evenly stocked for its size.
  */
 export function scatterPieces(model: PuzzleModel, seed: number, targetAspect?: number): LayoutResult {
   const rand = mulberry32(seed);
   const W = model.board.width;
   const H = model.board.height;
-  const minFoot = W * 0.026;
   const boardGap = W * 0.03;
   const ringStep = W * 0.008;
   const searchDepth = W * 0.45;
+  const aspect = targetAspect && Number.isFinite(targetAspect) ? Math.min(3, Math.max(0.35, targetAspect)) : W / H;
 
+  const gapOf = (size: number) => Math.min(Math.max(size * 0.07, W * 0.006), W * 0.016);
+  const footprint = (p: PuzzleModel['pieces'][number], k: number) => {
+    const min = W * MIN_FOOT * k;
+    return { fw: Math.max(p.w, min), fh: Math.max(p.h, min), gap: gapOf(p.size) * Math.min(k, 1.6) };
+  };
+  const footArea = (k: number) => {
+    let a = 0;
+    for (const p of model.pieces) {
+      const f = footprint(p, k);
+      a += (f.fw + f.gap) * (f.fh + f.gap);
+    }
+    return a;
+  };
+
+  // ── Frame the table ──────────────────────────────────────────────────────
+  const innerW = W + 2 * boardGap;
+  const innerH = H + 2 * boardGap;
+  const band = W * 0.07;
+  let frameW = Math.max(innerW + 2 * band, (innerH + 2 * band) * aspect);
+  let frameH = frameW / aspect;
+  const free = () => frameW * frameH - innerW * innerH;
+  let spread = 1;
+  if (footArea(1) / FILL > free()) {
+    // Not enough room: grow the frame (same shape) until the pieces fit.
+    const need = innerW * innerH + footArea(1) / FILL;
+    frameW = Math.sqrt(need * aspect);
+    frameH = frameW / aspect;
+  } else {
+    // Room to spare: spread small pieces out as far as it allows.
+    let lo = 1;
+    let hi = MAX_SPREAD;
+    for (let i = 0; i < 14; i++) {
+      const mid = (lo + hi) / 2;
+      if (footArea(mid) / FILL <= free()) lo = mid;
+      else hi = mid;
+    }
+    spread = lo;
+  }
+  const frame: Rect = { x0: W / 2 - frameW / 2, y0: H / 2 - frameH / 2, x1: W / 2 + frameW / 2, y1: H / 2 + frameH / 2 };
+  // Area of the band on each side (top, right, bottom, left), to share pieces out fairly.
+  const bandArea = [
+    Math.max(1, frameW * (-boardGap - frame.y0)),
+    Math.max(1, (frame.x1 - W - boardGap) * innerH),
+    Math.max(1, frameW * (frame.y1 - H - boardGap)),
+    Math.max(1, (-boardGap - frame.x0) * innerH),
+  ];
+
+  // ── Place the pieces ─────────────────────────────────────────────────────
   // Size-ordered, but shuffled within bands of similar size so neighbours vary.
   const sorted = [...model.pieces].sort((a, b) => b.w * b.h - a.w * a.h);
   const bands: (typeof sorted)[] = [];
@@ -68,50 +132,62 @@ export function scatterPieces(model: PuzzleModel, seed: number, targetAspect?: n
   const hash = new RectHash(W * 0.05);
   const positions = new Map<string, [number, number]>();
   const sideFill = [0, 0, 0, 0];
-  const sideLen = [W, H, W, H];
-  let bounds: Rect = { x0: -boardGap, y0: -boardGap, x1: W + boardGap, y1: H + boardGap };
-  const area = (b: Rect) => (b.x1 - b.x0) * (b.y1 - b.y0);
-  // Shape the table like the players' screens (portrait phones → pieces above
-  // and below), falling back to the board's own shape.
-  const boardAspect = targetAspect && Number.isFinite(targetAspect) ? Math.min(3, Math.max(0.35, targetAspect)) : W / H;
+  let bounds: Rect = { ...frame };
+  let boundsArea = frameW * frameH;
+  const probe: Rect = { x0: 0, y0: 0, x1: 0, y1: 0 };
 
   for (const piece of order) {
-    const fw = Math.max(piece.w, minFoot);
-    const fh = Math.max(piece.h, minFoot);
-    const gap = Math.min(Math.max(piece.size * 0.07, W * 0.006), W * 0.016);
+    const { fw, fh, gap } = footprint(piece, spread);
     const step = Math.min(Math.max(Math.min(fw, fh) / 2, W * 0.004), W * 0.025);
     let best: { rect: Rect; side: number; cost: number } | null = null;
     let firstRing = -1;
+    // The side-balance part of the cost can't go below the emptiest side's.
+    let floor = Infinity;
+    for (let side = 0; side < 4; side++) floor = Math.min(floor, SIDE_WEIGHT * (sideFill[side] / bandArea[side]));
 
-    for (let r = boardGap; r < W * 4; r += ringStep) {
+    for (let r = boardGap; r < W * 6; r += ringStep) {
       if (firstRing >= 0 && r > firstRing + searchDepth) break;
-      // Cost never drops below the ring distance, so farther rings can't win.
-      if (best && (r - boardGap) / W > best.cost) break;
+      // Cost never drops below the ring distance (plus that floor), so farther rings can't win.
+      if (best && (r - boardGap) / W + floor > best.cost) break;
       for (let side = 0; side < 4; side++) {
         const horizontal = side === 0 || side === 2;
         const span = horizontal ? W + 2 * r : H + 2 * r;
         const len = horizontal ? fw : fh;
-        const count = Math.max(1, Math.floor((span - len) / step) + 1);
-        const offset = rand() * step;
-        for (let i = 0; i < count; i++) {
-          const along = -r + len / 2 + Math.min(i * step + offset, span - len);
+        // Slide a candidate along this side of the ring. When it bumps into a
+        // placed piece, jump straight past it (rings fill up fast, so this skips
+        // most of the work and packs pieces snugly).
+        const lo = -r + len / 2;
+        const hi = Math.max(lo, -r + span - len / 2);
+        let along = Math.min(hi, lo + rand() * step);
+        let last = false;
+        for (;;) {
           const cx = horizontal ? along : side === 3 ? -r - fw / 2 : W + r + fw / 2;
           const cy = horizontal ? (side === 0 ? -r - fh / 2 : H + r + fh / 2) : along;
-          const rect = { x0: cx - fw / 2 - gap / 2, y0: cy - fh / 2 - gap / 2, x1: cx + fw / 2 + gap / 2, y1: cy + fh / 2 + gap / 2 };
-          if (hash.hits(rect)) continue;
-          const grown = {
-            x0: Math.min(bounds.x0, rect.x0),
-            y0: Math.min(bounds.y0, rect.y0),
-            x1: Math.max(bounds.x1, rect.x1),
-            y1: Math.max(bounds.y1, rect.y1),
-          };
-          const growth = (area(grown) - area(bounds)) / (W * H);
-          // Keep the table the same shape as the board, so the ring of pieces is even.
-          const aspect = (grown.x1 - grown.x0) / (grown.y1 - grown.y0);
-          const shape = Math.abs(Math.log(aspect / boardAspect));
-          const cost = (r - boardGap) / W + 2.5 * growth + 1.2 * shape + 0.25 * (sideFill[side] / sideLen[side] / W) + rand() * 0.01;
-          if (!best || cost < best.cost) best = { rect, side, cost };
+          probe.x0 = cx - fw / 2 - gap / 2;
+          probe.y0 = cy - fh / 2 - gap / 2;
+          probe.x1 = cx + fw / 2 + gap / 2;
+          probe.y1 = cy + fh / 2 + gap / 2;
+          const blocker = hash.firstHit(probe);
+          let next = along + step;
+          if (blocker) next = Math.max(next, (horizontal ? blocker.x1 + fw / 2 : blocker.y1 + fh / 2) + gap / 2 + 1e-6);
+          if (last) next = Infinity;
+          else if (next > hi) {
+            next = hi;
+            last = true;
+          }
+          if (blocker) {
+            if (next === Infinity || next <= along) break;
+            along = next;
+            continue;
+          }
+          // Spilling out of the frame shrinks everything on screen, so it costs a lot.
+          const grownArea = (Math.max(bounds.x1, probe.x1) - Math.min(bounds.x0, probe.x0)) * (Math.max(bounds.y1, probe.y1) - Math.min(bounds.y0, probe.y0));
+          const growth = (grownArea - boundsArea) / (W * H);
+          const cost = (r - boardGap) / W + 4 * growth + SIDE_WEIGHT * (sideFill[side] / bandArea[side]) + rand() * 0.01;
+          if (!best || cost < best.cost) best = { rect: { ...probe }, side, cost };
           if (firstRing < 0) firstRing = r;
+          if (next === Infinity || next <= along) break;
+          along = next;
         }
       }
     }
@@ -122,23 +198,33 @@ export function scatterPieces(model: PuzzleModel, seed: number, targetAspect?: n
     const cy = (rect.y0 + rect.y1) / 2;
     // The footprint is centred on the piece's bbox centre (its anchor).
     positions.set(piece.id, [round2(cx - (piece.bbox[0] + piece.bbox[2]) / 2), round2(cy - (piece.bbox[1] + piece.bbox[3]) / 2)]);
-    sideFill[side] += fw * fh;
+    sideFill[side] += (rect.x1 - rect.x0) * (rect.y1 - rect.y0);
     bounds = {
       x0: Math.min(bounds.x0, rect.x0),
       y0: Math.min(bounds.y0, rect.y0),
       x1: Math.max(bounds.x1, rect.x1),
       y1: Math.max(bounds.y1, rect.y1),
     };
+    boundsArea = (bounds.x1 - bounds.x0) * (bounds.y1 - bounds.y0);
   }
 
+  // Trim the frame back to what the pieces actually use (keeping the board centred).
+  const used = { x0: 0, y0: 0, x1: W, y1: H };
+  for (const piece of model.pieces) {
+    const [x, y] = positions.get(piece.id)!;
+    used.x0 = Math.min(used.x0, x + piece.bbox[0]);
+    used.y0 = Math.min(used.y0, y + piece.bbox[1]);
+    used.x1 = Math.max(used.x1, x + piece.bbox[2]);
+    used.y1 = Math.max(used.y1, y + piece.bbox[3]);
+  }
   const margin = W * 0.04;
   return {
     positions,
     table: {
-      x0: round2(bounds.x0 - margin),
-      y0: round2(bounds.y0 - margin),
-      x1: round2(bounds.x1 + margin),
-      y1: round2(bounds.y1 + margin),
+      x0: round2(used.x0 - margin),
+      y0: round2(used.y0 - margin),
+      x1: round2(used.x1 + margin),
+      y1: round2(used.y1 + margin),
     },
   };
 }
