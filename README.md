@@ -196,7 +196,7 @@ apps/web         React 19 + Vite. The puzzle itself is a Canvas 2D engine in src
 apps/server      Fastify 5 + WebSocket rooms, REST API, Drizzle ORM (Postgres or PGlite)
 packages/shared  Game rules and engine, protocol types, country list, puzzle data
 packages/geo     Map pipeline: Natural Earth → projected, simplified, coloured pieces
-e2e              Playwright tests (iPhone SE and desktop, including a two-player game)
+e2e              Playwright tests on iPhone SE and desktop: solo and two-player games, the Teams lobby, offline play
 ```
 
 - **The server has the final say.** The shared `GameEngine` runs on the server. It lays the pieces out around the board to suit the players' screen shapes, hands out piece locks, validates drops and keeps score.
@@ -218,7 +218,7 @@ e2e              Playwright tests (iPhone SE and desktop, including a two-player
 ```bash
 npm run typecheck     # all packages
 npm test              # unit + integration tests (Vitest), including a real WebSocket server
-npm run build && npm run test:e2e   # Playwright: iPhone SE + desktop, solo and multiplayer
+npm run build && npm run test:e2e   # Playwright: iPhone SE + desktop (solo, multiplayer, lobby, offline)
 npm run format        # Prettier
 ```
 
