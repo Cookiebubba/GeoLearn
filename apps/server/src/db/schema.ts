@@ -1,14 +1,4 @@
-import {
-  boolean,
-  index,
-  integer,
-  pgTable,
-  primaryKey,
-  real,
-  text,
-  timestamp,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import { boolean, index, integer, pgTable, primaryKey, real, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 /** Everyone plays by username; a device token proves a name belongs to you. */
 export const players = pgTable('players', {
@@ -44,10 +34,7 @@ export const games = pgTable(
     startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
     finishedAt: timestamp('finished_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    index('games_board_idx').on(t.puzzleId, t.mode, t.party, t.completed),
-    index('games_finished_idx').on(t.finishedAt),
-  ],
+  (t) => [index('games_board_idx').on(t.puzzleId, t.mode, t.party, t.completed), index('games_finished_idx').on(t.finishedAt)],
 );
 
 export const gamePlayers = pgTable(

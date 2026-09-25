@@ -1,13 +1,6 @@
 import type { ContinentId } from './geo/countries';
 
-export type PuzzleId =
-  | 'africa'
-  | 'asia'
-  | 'europe'
-  | 'north-america'
-  | 'south-america'
-  | 'oceania'
-  | 'world';
+export type PuzzleId = 'africa' | 'asia' | 'europe' | 'north-america' | 'south-america' | 'oceania' | 'world';
 
 export interface PuzzleMeta {
   id: PuzzleId;

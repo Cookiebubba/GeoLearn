@@ -11,7 +11,10 @@ export function signedArea(ring: Ring): number {
 }
 
 export function ringBBox(ring: Ring): [number, number, number, number] {
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity;
   for (const [x, y] of ring) {
     if (x < x0) x0 = x;
     if (y < y0) y0 = y;
@@ -113,7 +116,7 @@ export function groupRings(rings: Ring[]): PolygonRec[] {
 /** Returns the ring with clockwise (exterior=true) or counter-clockwise orientation on screen. */
 export function orient(ring: Ring, exterior: boolean): Ring {
   const a = signedArea(ring);
-  if ((a > 0) === exterior) return ring;
+  if (a > 0 === exterior) return ring;
   return ring.slice().reverse();
 }
 

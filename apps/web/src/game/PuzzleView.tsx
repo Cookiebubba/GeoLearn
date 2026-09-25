@@ -15,7 +15,8 @@ function useSafeAreas() {
   const [s, setS] = useState({ top: 0, bottom: 0 });
   useEffect(() => {
     const probe = document.createElement('div');
-    probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)';
+    probe.style.cssText =
+      'position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)';
     document.body.appendChild(probe);
     const read = () => {
       const cs = getComputedStyle(probe);
@@ -89,21 +90,24 @@ export function PuzzleView({ room, you, onLeave }: { room: RoomSnapshot; you: st
     const staticCanvas = staticRef.current;
     if (!model || !canvas || !staticCanvas) return;
     const prefs = usePrefs.getState();
-    const engine = new PuzzleEngine({ staticCanvas, dynamicCanvas: canvas }, {
-      model,
-      you,
-      palette: PALETTE_BY_ID.get(prefs.palette) ?? PALETTES[0],
-      visibility: prefs.visibility,
-      sound,
-      haptics: prefs.haptics,
-      callbacks: {
-        grab: (p, m) => roomClient.send({ t: 'grab', p, m }),
-        move: (p, x, y) => roomClient.send({ t: 'move', p, x, y }),
-        drop: (p, x, y, z) => roomClient.send({ t: 'drop', p, x, y, z }),
-        cursor: (x, y) => roomClient.send({ t: 'cursor', x, y }),
-        progress: (placed, total) => setProgress({ placed, total }),
+    const engine = new PuzzleEngine(
+      { staticCanvas, dynamicCanvas: canvas },
+      {
+        model,
+        you,
+        palette: PALETTE_BY_ID.get(prefs.palette) ?? PALETTES[0],
+        visibility: prefs.visibility,
+        sound,
+        haptics: prefs.haptics,
+        callbacks: {
+          grab: (p, m) => roomClient.send({ t: 'grab', p, m }),
+          move: (p, x, y) => roomClient.send({ t: 'move', p, x, y }),
+          drop: (p, x, y, z) => roomClient.send({ t: 'drop', p, x, y, z }),
+          cursor: (x, y) => roomClient.send({ t: 'cursor', x, y }),
+          progress: (placed, total) => setProgress({ placed, total }),
+        },
       },
-    });
+    );
     engineRef.current = engine;
     (window as unknown as { __geolearn?: unknown }).__geolearn = { engine };
     const listener: GameListener = {
@@ -222,12 +226,7 @@ export function PuzzleView({ room, you, onLeave }: { room: RoomSnapshot; you: st
   };
 
   const startedAt = room.game?.startedAt ?? null;
-  const elapsed =
-    status === 'finished' && room.results
-      ? room.results.durationMs
-      : startedAt && status === 'playing'
-        ? now - startedAt
-        : 0;
+  const elapsed = status === 'finished' && room.results ? room.results.durationMs : startedAt && status === 'playing' ? now - startedAt : 0;
   const total = progress.total || model?.pieces.length || 0;
   const players = room.players;
   const versus = room.settings.mode !== 'coop';
@@ -242,7 +241,12 @@ export function PuzzleView({ room, you, onLeave }: { room: RoomSnapshot; you: st
 
       <div className="hud-top">
         <div className="hud-group">
-          <button className={`icon-btn${confirmLeave ? ' active' : ''}`} aria-label="Leave game" onClick={leave} style={confirmLeave ? { width: 'auto', padding: '0 14px', fontSize: 14, fontWeight: 650 } : undefined}>
+          <button
+            className={`icon-btn${confirmLeave ? ' active' : ''}`}
+            aria-label="Leave game"
+            onClick={leave}
+            style={confirmLeave ? { width: 'auto', padding: '0 14px', fontSize: 14, fontWeight: 650 } : undefined}
+          >
             {confirmLeave ? 'Leave?' : <X size={20} />}
           </button>
         </div>

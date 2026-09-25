@@ -1,4 +1,14 @@
-import type { CatalogEntry, LeaderboardKind, OpenRoomSummary, PartyBucket, PuzzleDataFile, PuzzleDetailFile, PuzzleId, RoomSettings, RoomStatus } from '@geolearn/shared';
+import type {
+  CatalogEntry,
+  LeaderboardKind,
+  OpenRoomSummary,
+  PartyBucket,
+  PuzzleDataFile,
+  PuzzleDetailFile,
+  PuzzleId,
+  RoomSettings,
+  RoomStatus,
+} from '@geolearn/shared';
 import catalogJson from '@geolearn/shared/data/catalog.json';
 
 export const catalog = catalogJson as CatalogEntry[];
@@ -44,7 +54,12 @@ export interface LeaderboardEntry {
   at: string;
 }
 
-export async function fetchLeaderboard(kind: LeaderboardKind | 'alltime', puzzle: PuzzleId, party: PartyBucket, period: 'all' | 'week'): Promise<LeaderboardEntry[]> {
+export async function fetchLeaderboard(
+  kind: LeaderboardKind | 'alltime',
+  puzzle: PuzzleId,
+  party: PartyBucket,
+  period: 'all' | 'week',
+): Promise<LeaderboardEntry[]> {
   const q = new URLSearchParams({ kind, puzzle, party, period });
   const body = await json<{ entries: LeaderboardEntry[] }>(await fetch(`/api/leaderboard?${q}`));
   return body.entries;

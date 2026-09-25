@@ -13,7 +13,15 @@ export interface PieceInfo {
 
 declare global {
   interface Window {
-    __geolearn?: { engine: { inspect(id: string): PieceInfo | null; pieceIds: string[]; isInteractive: boolean; fitTable(animate?: boolean): void; progress: { placed: number; total: number } } };
+    __geolearn?: {
+      engine: {
+        inspect(id: string): PieceInfo | null;
+        pieceIds: string[];
+        isInteractive: boolean;
+        fitTable(animate?: boolean): void;
+        progress: { placed: number; total: number };
+      };
+    };
   }
 }
 
@@ -25,7 +33,10 @@ export async function asPlayer(ctx: BrowserContext, name: string, opts: { muted?
       localStorage.setItem('geolearn.identity', JSON.stringify({ state: { name, token }, version: 0 }));
       localStorage.setItem(
         'geolearn.prefs',
-        JSON.stringify({ state: { palette: 'atlas', visibility: { names: false, capitals: false, flags: false, revealOnPlace: true }, volume: 0.8, muted, haptics: true }, version: 0 }),
+        JSON.stringify({
+          state: { palette: 'atlas', visibility: { names: false, capitals: false, flags: false, revealOnPlace: true }, volume: 0.8, muted, haptics: true },
+          version: 0,
+        }),
       );
     },
     [name, token, opts.muted ?? true] as const,
@@ -42,7 +53,10 @@ export const info = (page: Page, id: string) => page.evaluate((id) => window.__g
 export async function touchPlace(page: Page, ctx: BrowserContext, id: string): Promise<boolean> {
   const cdp = await ctx.newCDPSession(page);
   const touch = (type: string, pts: [number, number][]) =>
-    cdp.send('Input.dispatchTouchEvent', { type: type as 'touchStart', touchPoints: pts.map(([x, y], i) => ({ x, y, id: i + 1, radiusX: 3, radiusY: 3, force: 1 })) });
+    cdp.send('Input.dispatchTouchEvent', {
+      type: type as 'touchStart',
+      touchPoints: pts.map(([x, y], i) => ({ x, y, id: i + 1, radiusX: 3, radiusY: 3, force: 1 })),
+    });
   await page.evaluate(() => window.__geolearn!.engine.fitTable(false));
   await page.waitForTimeout(40);
   const a = await info(page, id);

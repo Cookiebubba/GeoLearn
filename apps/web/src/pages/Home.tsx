@@ -70,7 +70,9 @@ export function Home() {
         <Link to="/puzzle" className="card game-card primary">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span className="badge live">Multiplayer · Live</span>
-            <span className="muted" style={{ fontSize: 13 }}>7 maps</span>
+            <span className="muted" style={{ fontSize: 13 }}>
+              7 maps
+            </span>
           </div>
           <div className="art">
             <Silhouette id="world" className="silhouette" />
@@ -169,9 +171,7 @@ export function Home() {
         )}
       </section>
 
-      <footer className="footer">
-        Borders follow the internationally recognised (UN) view · Map data: Natural Earth · Flags: flag-icons
-      </footer>
+      <footer className="footer">Borders follow the internationally recognised (UN) view · Map data: Natural Earth · Flags: flag-icons</footer>
     </div>
   );
 }

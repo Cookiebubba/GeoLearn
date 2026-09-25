@@ -103,10 +103,7 @@ export class PuzzleEngine {
 
   readonly canvas: HTMLCanvasElement;
 
-  constructor(
-    layers: { staticCanvas: HTMLCanvasElement; dynamicCanvas: HTMLCanvasElement },
-    opts: EngineOptions,
-  ) {
+  constructor(layers: { staticCanvas: HTMLCanvasElement; dynamicCanvas: HTMLCanvasElement }, opts: EngineOptions) {
     const canvas = layers.dynamicCanvas;
     this.canvas = canvas;
     this.model = opts.model;
@@ -748,7 +745,18 @@ export class PuzzleEngine {
       }
 
       const still =
-        !p.heldBy && !p.snap && p.press < 0 && p.glow < 0 && p.pressDelay <= 0 && p.lift === 0 && p.liftV === 0 && p.hover === 0 && p.vx === 0 && p.vy === 0 && p.rx === p.x && p.ry === p.y;
+        !p.heldBy &&
+        !p.snap &&
+        p.press < 0 &&
+        p.glow < 0 &&
+        p.pressDelay <= 0 &&
+        p.lift === 0 &&
+        p.liftV === 0 &&
+        p.hover === 0 &&
+        p.vx === 0 &&
+        p.vy === 0 &&
+        p.rx === p.x &&
+        p.ry === p.y;
       if (still !== p.still) {
         p.still = still;
         this.orderDirty = true;

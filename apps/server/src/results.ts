@@ -1,11 +1,5 @@
 import { sql, type SQL } from 'drizzle-orm';
-import {
-  partyBucket,
-  type GameResults,
-  type LeaderboardKind,
-  type LeaderboardPlacement,
-  type PartyBucket,
-} from '@geolearn/shared/game/types';
+import { partyBucket, type GameResults, type LeaderboardKind, type LeaderboardPlacement, type PartyBucket } from '@geolearn/shared/game/types';
 import type { PuzzleId } from '@geolearn/shared/puzzles';
 import type { DbHandle } from './db/client';
 import { gamePlayers, games } from './db/schema';
@@ -146,7 +140,13 @@ export class ResultsStore {
     return out;
   }
 
-  async leaderboard(kind: LeaderboardKind | 'alltime', puzzle: PuzzleId, party: PartyBucket, period: LeaderboardPeriod, limit = 50): Promise<LeaderboardEntry[]> {
+  async leaderboard(
+    kind: LeaderboardKind | 'alltime',
+    puzzle: PuzzleId,
+    party: PartyBucket,
+    period: LeaderboardPeriod,
+    limit = 50,
+  ): Promise<LeaderboardEntry[]> {
     const lim = Math.max(1, Math.min(100, limit));
     let rows: { names: string; value: number; secondary: number; at: Date | string }[];
     if (kind === 'fastest' || kind === 'precision') {

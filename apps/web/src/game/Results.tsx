@@ -11,7 +11,19 @@ function placementText(p: LeaderboardPlacement, party: string): string {
   return `${ordinal(p.rank)} ${board} · ${party}`;
 }
 
-export function Results({ room, you, offline, onHide, onLeave }: { room: RoomSnapshot; you: string; offline: boolean; onHide: () => void; onLeave: () => void }) {
+export function Results({
+  room,
+  you,
+  offline,
+  onHide,
+  onLeave,
+}: {
+  room: RoomSnapshot;
+  you: string;
+  offline: boolean;
+  onHide: () => void;
+  onLeave: () => void;
+}) {
   const { navigate } = useRouter();
   const r = room.results!;
   const me = room.players.find((p) => p.id === you);
@@ -34,7 +46,12 @@ export function Results({ room, you, offline, onHide, onLeave }: { room: RoomSna
     const winners = r.players.filter((p) => r.winners.includes(p.id));
     title = winners.some((w) => w.id === you) ? (winners.length > 1 ? 'A shared win!' : 'You win!') : `${winners.map((w) => w.name).join(' & ')} wins`;
   } else if (r.mode === 'teams') {
-    title = r.winningTeam === null ? 'A perfect tie' : mine && mine.team === r.winningTeam ? `Team ${TEAM_NAMES[r.winningTeam]} wins — that's you!` : `Team ${TEAM_NAMES[r.winningTeam]} wins`;
+    title =
+      r.winningTeam === null
+        ? 'A perfect tie'
+        : mine && mine.team === r.winningTeam
+          ? `Team ${TEAM_NAMES[r.winningTeam]} wins — that's you!`
+          : `Team ${TEAM_NAMES[r.winningTeam]} wins`;
   }
 
   const stats =
@@ -72,7 +89,11 @@ export function Results({ room, you, offline, onHide, onLeave }: { room: RoomSna
 
         {(offline || localBest || (r.leaderboard && r.leaderboard.length > 0)) && (
           <div className="placements">
-            {offline && <span className="placement" style={{ background: 'var(--bg-soft)', color: 'var(--muted)' }}>Offline · not ranked</span>}
+            {offline && (
+              <span className="placement" style={{ background: 'var(--bg-soft)', color: 'var(--muted)' }}>
+                Offline · not ranked
+              </span>
+            )}
             {localBest && (
               <span className="placement">
                 <Trophy size={14} /> Personal best

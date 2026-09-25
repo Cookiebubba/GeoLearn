@@ -33,12 +33,13 @@ for (const meta of PUZZLES) {
   ctx.translate(-table.x0, -table.y0);
   // Board silhouette = union of all pieces at home.
   const sil = new Path2D();
-  for (const pc of model.pieces) for (const enc of pc.data.rings[0]) {
-    const r = decodeRing(enc);
-    sil.moveTo(r[0] + pc.tx, r[1] + pc.ty);
-    for (let i = 2; i < r.length; i += 2) sil.lineTo(r[i] + pc.tx, r[i + 1] + pc.ty);
-    sil.closePath();
-  }
+  for (const pc of model.pieces)
+    for (const enc of pc.data.rings[0]) {
+      const r = decodeRing(enc);
+      sil.moveTo(r[0] + pc.tx, r[1] + pc.ty);
+      for (let i = 2; i < r.length; i += 2) sil.lineTo(r[i] + pc.tx, r[i + 1] + pc.ty);
+      sil.closePath();
+    }
   ctx.fillStyle = '#e7e7e3';
   ctx.fill(sil, 'nonzero');
   for (const pc of model.pieces) {

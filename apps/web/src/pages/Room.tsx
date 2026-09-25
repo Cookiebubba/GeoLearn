@@ -179,7 +179,8 @@ function Lobby({ onLeave }: { onLeave: () => void }) {
   const s = room.settings;
   const puzzle = PUZZLE_BY_ID.get(s.puzzleId)!;
   const link = `${window.location.origin}/room/${room.code}`;
-  const canStart = s.mode === 'coop' ? room.players.length >= 1 : s.mode === 'teams' ? new Set(room.players.map((p) => p.team)).size === 2 : room.players.length >= 2;
+  const canStart =
+    s.mode === 'coop' ? room.players.length >= 1 : s.mode === 'teams' ? new Set(room.players.map((p) => p.team)).size === 2 : room.players.length >= 2;
 
   const update = (patch: Partial<RoomSettings>) => {
     const next = { ...s, ...patch };
@@ -230,7 +231,12 @@ function Lobby({ onLeave }: { onLeave: () => void }) {
           </button>
         )}
         {isHost && p.id !== you && (
-          <button className="icon-btn" style={{ width: 34, height: 34 }} aria-label={`Remove ${p.name}`} onClick={() => roomClient.send({ t: 'kick', id: p.id })}>
+          <button
+            className="icon-btn"
+            style={{ width: 34, height: 34 }}
+            aria-label={`Remove ${p.name}`}
+            onClick={() => roomClient.send({ t: 'kick', id: p.id })}
+          >
             <UserMinus size={15} />
           </button>
         )}
@@ -248,7 +254,9 @@ function Lobby({ onLeave }: { onLeave: () => void }) {
         <button className="btn ghost small" onClick={onLeave}>
           <ArrowLeft size={17} /> Leave
         </button>
-        <span className="badge live">{room.players.length} / {s.partySize} here</span>
+        <span className="badge live">
+          {room.players.length} / {s.partySize} here
+        </span>
       </header>
 
       <div className="lobby">

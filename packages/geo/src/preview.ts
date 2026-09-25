@@ -55,7 +55,7 @@ for (const meta of PUZZLES) {
     const info = COUNTRY_BY_ID.get(pc.id)!;
     const lx = pc.target[0] + pc.label[0];
     const ly = pc.target[1] + pc.label[1];
-    const size = Math.max(4, Math.min(11, pc.label[2] * 0.5)) / scale * 1.6;
+    const size = (Math.max(4, Math.min(11, pc.label[2] * 0.5)) / scale) * 1.6;
     ctx.font = `${size}px sans-serif`;
     ctx.fillStyle = '#222';
     ctx.textAlign = 'center';
@@ -63,7 +63,7 @@ for (const meta of PUZZLES) {
     if (pc.capital) {
       ctx.fillStyle = '#c0392b';
       ctx.beginPath();
-      ctx.arc(pc.target[0] + pc.capital[0], pc.target[1] + pc.capital[1], 1.3 / scale * 1.5, 0, Math.PI * 2);
+      ctx.arc(pc.target[0] + pc.capital[0], pc.target[1] + pc.capital[1], (1.3 / scale) * 1.5, 0, Math.PI * 2);
       ctx.fill();
     } else {
       ctx.fillStyle = '#c0392b';

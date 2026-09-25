@@ -65,7 +65,13 @@ describe('shared borders', () => {
       return set;
     };
     for (const lod of [0, 1]) {
-      for (const [a, b] of [['FRA', 'DEU'], ['POL', 'DEU'], ['ESP', 'PRT'], ['UKR', 'BLR'], ['UKR', 'RUS']]) {
+      for (const [a, b] of [
+        ['FRA', 'DEU'],
+        ['POL', 'DEU'],
+        ['ESP', 'PRT'],
+        ['UKR', 'BLR'],
+        ['UKR', 'RUS'],
+      ]) {
         const va = verts(a, lod);
         const vb = verts(b, lod);
         const shared = [...va].filter((v) => vb.has(v)).length;

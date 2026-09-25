@@ -283,13 +283,24 @@ export class Renderer {
     const main: View = { x: cam.x, y: cam.y, zoom: cam.zoom, cx: cam.cx, cy: cam.cy, width: cam.width, height: cam.height };
 
     // Static layer: re-render only when needed, otherwise just move it.
-    const key = [s.lod, s.staticVersion, s.dpr, cam.width, cam.height, cam.cx, cam.cy, visKey(s.visibility), Math.round(s.completeGlow * 20), this.shadow ? 1 : 0, this.flagVersion].join('|');
+    const key = [
+      s.lod,
+      s.staticVersion,
+      s.dpr,
+      cam.width,
+      cam.height,
+      cam.cx,
+      cam.cy,
+      visKey(s.visibility),
+      Math.round(s.completeGlow * 20),
+      this.shadow ? 1 : 0,
+      this.flagVersion,
+    ].join('|');
     if (this.needsStatic(s, main, key)) this.renderStatic(s, main, key);
     this.positionLayer(main);
 
     // Dynamic layer.
-    const hasDynamic =
-      s.pressing.length + s.settling.length + s.moving.length + s.held.length > 0 || s.effects.active || s.cursors.size > 0;
+    const hasDynamic = s.pressing.length + s.settling.length + s.moving.length + s.held.length > 0 || s.effects.active || s.cursors.size > 0;
     if (!hasDynamic && !this.dynamicDirty) return;
     const ctx = this.dctx;
     this.ctx = ctx;
@@ -470,7 +481,15 @@ export class Renderer {
     }
   }
 
-  private drawLoose(p: ScenePiece, s: RenderInput, v: View, view: { x0: number; y0: number; x1: number; y1: number }, budget: { n: number }, liftBudget: { n: number }, labelsOn: boolean) {
+  private drawLoose(
+    p: ScenePiece,
+    s: RenderInput,
+    v: View,
+    view: { x0: number; y0: number; x1: number; y1: number },
+    budget: { n: number },
+    liftBudget: { n: number },
+    labelsOn: boolean,
+  ) {
     const ctx = this.ctx;
     const dpr = s.dpr;
     const lift = clamp(p.lift, 0, 1.2);
@@ -536,7 +555,15 @@ export class Renderer {
   }
 
   /** Draws a shadow sprite under a piece anchored at screen (ax, ay). */
-  private stamp(sp: { canvas: HTMLCanvasElement; scale: number; ox: number; oy: number }, ax: number, ay: number, zoom: number, scale: number, alpha: number, dpr: number) {
+  private stamp(
+    sp: { canvas: HTMLCanvasElement; scale: number; ox: number; oy: number },
+    ax: number,
+    ay: number,
+    zoom: number,
+    scale: number,
+    alpha: number,
+    dpr: number,
+  ) {
     const ctx = this.ctx;
     if (!sp.canvas.width) return;
     const k = zoom * scale;

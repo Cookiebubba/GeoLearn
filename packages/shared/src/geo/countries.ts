@@ -14,13 +14,7 @@
  *   Macedonia, Cabo Verde, Timor-Leste, Côte d'Ivoire, Myanmar).
  */
 
-export type ContinentId =
-  | 'africa'
-  | 'asia'
-  | 'europe'
-  | 'north-america'
-  | 'south-america'
-  | 'oceania';
+export type ContinentId = 'africa' | 'asia' | 'europe' | 'north-america' | 'south-america' | 'oceania';
 
 export type CountryStatus = 'un-member' | 'observer' | 'partially-recognized' | 'disputed' | 'territory';
 
@@ -60,6 +54,7 @@ const SA: ContinentId[] = ['south-america'];
 const OC: ContinentId[] = ['oceania'];
 const EUAS: ContinentId[] = ['europe', 'asia'];
 
+// prettier-ignore
 const ROWS: Row[] = [
   // ── Africa ──────────────────────────────────────────────────────────────
   ['DZA', 'dz', 'Algeria', 'Algiers', 3.0588, 36.7538, AF],

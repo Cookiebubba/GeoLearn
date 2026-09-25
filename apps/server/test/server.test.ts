@@ -89,11 +89,23 @@ describe('server', () => {
   });
 
   it('claims usernames first come, first served', async () => {
-    const a = await http('/api/players/claim', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Ada', token: 'token-ada-0123456789abcdef' }) });
+    const a = await http('/api/players/claim', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Ada', token: 'token-ada-0123456789abcdef' }),
+    });
     expect(a.status).toBe(200);
-    const again = await http('/api/players/claim', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'ada', token: 'token-ada-0123456789abcdef' }) });
+    const again = await http('/api/players/claim', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'ada', token: 'token-ada-0123456789abcdef' }),
+    });
     expect(again.status).toBe(200);
-    const thief = await http('/api/players/claim', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'ADA', token: 'token-mallory-0123456789ab' }) });
+    const thief = await http('/api/players/claim', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'ADA', token: 'token-mallory-0123456789ab' }),
+    });
     expect(thief.status).toBe(409);
   });
 

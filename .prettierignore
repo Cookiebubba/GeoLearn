@@ -1,3 +1,4 @@
 packages/shared/data/
 dist/
 node_modules/
+apps/server/drizzle/meta/

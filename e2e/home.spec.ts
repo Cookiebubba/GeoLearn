@@ -20,7 +20,11 @@ test('a new player is asked for a name, and taken names are refused', async ({ b
   const op = await other.newPage();
   await op.goto('/');
   const claimed = await op.evaluate(() =>
-    fetch('/api/players/claim', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Magellan', token: 'magellan-token-0123456789' }) }).then((r) => r.status),
+    fetch('/api/players/claim', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Magellan', token: 'magellan-token-0123456789' }),
+    }).then((r) => r.status),
   );
   expect(claimed).toBe(200);
   await other.close();

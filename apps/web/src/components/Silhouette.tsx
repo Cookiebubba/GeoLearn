@@ -27,7 +27,12 @@ export function Silhouette({ id, className, tone = 'inset' }: { id: PuzzleId; cl
           </feMerge>
         </filter>
       </defs>
-      <path d={entry.silhouette} fill={tone === 'ink' ? '#1c1e23' : '#e6e6e1'} fillRule="nonzero" filter={tone === 'inset' ? `url(#inner-${uid})` : undefined} />
+      <path
+        d={entry.silhouette}
+        fill={tone === 'ink' ? '#1c1e23' : '#e6e6e1'}
+        fillRule="nonzero"
+        filter={tone === 'inset' ? `url(#inner-${uid})` : undefined}
+      />
     </svg>
   );
 }

@@ -18,12 +18,7 @@ export interface DbHandle {
  * server…) and otherwise falls back to an embedded PGlite database on disk, so
  * `npm run dev` works with zero setup. Both run the same SQL migrations.
  */
-export async function openDatabase(opts: {
-  databaseUrl?: string;
-  dataDir: string;
-  ssl?: boolean;
-  migrationsDir: string;
-}): Promise<DbHandle> {
+export async function openDatabase(opts: { databaseUrl?: string; dataDir: string; ssl?: boolean; migrationsDir: string }): Promise<DbHandle> {
   if (opts.databaseUrl) {
     const { default: pg } = await import('pg');
     const { drizzle } = await import('drizzle-orm/node-postgres');

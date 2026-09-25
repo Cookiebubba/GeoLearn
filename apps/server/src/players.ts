@@ -4,9 +4,7 @@ import { normalizeName, validateName } from '@geolearn/shared/protocol';
 import type { DbHandle } from './db/client';
 import { players } from './db/schema';
 
-export type ClaimResult =
-  | { ok: true; id: string; name: string }
-  | { ok: false; code: 'name-invalid' | 'name-taken'; message: string };
+export type ClaimResult = { ok: true; id: string; name: string } | { ok: false; code: 'name-invalid' | 'name-taken'; message: string };
 
 export function nameKey(name: string): string {
   return normalizeName(name).toLowerCase();

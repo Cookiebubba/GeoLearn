@@ -1,10 +1,4 @@
-import type {
-  GameResults,
-  GrabMode,
-  PlayerInfo,
-  RoomSettings,
-  RoomSnapshot,
-} from './game/types';
+import type { GameResults, GrabMode, PlayerInfo, RoomSettings, RoomSnapshot } from './game/types';
 
 export const PROTOCOL_VERSION = 1;
 
@@ -49,16 +43,7 @@ export type ServerMsg =
   | { t: 'error'; code: ErrorCode; message: string }
   | { t: 'left'; reason: 'kicked' | 'closed' };
 
-export type ErrorCode =
-  | 'bad-request'
-  | 'name-taken'
-  | 'name-invalid'
-  | 'room-not-found'
-  | 'room-full'
-  | 'not-host'
-  | 'not-allowed'
-  | 'rate-limited'
-  | 'server';
+export type ErrorCode = 'bad-request' | 'name-taken' | 'name-invalid' | 'room-not-found' | 'room-full' | 'not-host' | 'not-allowed' | 'rate-limited' | 'server';
 
 export const NAME_RULES = {
   min: 2,
@@ -83,5 +68,8 @@ export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const ROOM_CODE_LENGTH = 5;
 
 export function normalizeRoomCode(raw: string): string {
-  return raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, ROOM_CODE_LENGTH);
+  return raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, ROOM_CODE_LENGTH);
 }

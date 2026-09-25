@@ -187,7 +187,10 @@ export class SoundEngine {
     env.gain.setValueAtTime(0.0001, t);
     env.gain.exponentialRampToValueAtTime(o.gain, t + a);
     env.gain.exponentialRampToValueAtTime(0.0001, t + a + o.decay);
-    src.connect(filter).connect(env).connect(this.out(ctx, o.pan ?? 0, o.wet ?? 0));
+    src
+      .connect(filter)
+      .connect(env)
+      .connect(this.out(ctx, o.pan ?? 0, o.wet ?? 0));
     const offset = Math.random() * 0.8;
     src.start(t, offset, a + o.decay + 0.05);
   }
@@ -293,7 +296,10 @@ export class SoundEngine {
         env.gain.setValueAtTime(0.0001, t);
         env.gain.exponentialRampToValueAtTime(0.022 - i * 0.003, t + 0.9);
         env.gain.exponentialRampToValueAtTime(0.0001, t + 4.2);
-        osc.connect(lp).connect(env).connect(this.out(ctx, det < 0 ? -0.3 : 0.3, 0.6));
+        osc
+          .connect(lp)
+          .connect(env)
+          .connect(this.out(ctx, det < 0 ? -0.3 : 0.3, 0.6));
         osc.start(t);
         osc.stop(t + 4.4);
       }

@@ -14,27 +14,9 @@ import { presimplify, simplify } from 'topojson-simplify';
 import { feature, merge, neighbors } from 'topojson-client';
 import polylabel from 'polylabel';
 import { COUNTRY_BY_ID } from '@geolearn/shared/geo/countries';
-import {
-  encodeRing,
-  type CatalogEntry,
-  type PieceDataFile,
-  type PuzzleDataFile,
-  type PuzzleDetailFile,
-} from '@geolearn/shared/geo/puzzleData';
+import { encodeRing, type CatalogEntry, type PieceDataFile, type PuzzleDataFile, type PuzzleDetailFile } from '@geolearn/shared/geo/puzzleData';
 import { PUZZLE_CONFIGS, type PuzzleGeoConfig } from './config';
-import {
-  bboxDiag,
-  bboxDistance,
-  groupRings,
-  nearestOnRings,
-  orient,
-  pointInRing,
-  ringBBox,
-  signedArea,
-  unionBBox,
-  type PolygonRec,
-  type Ring,
-} from './geom';
+import { bboxDiag, bboxDistance, groupRings, nearestOnRings, orient, pointInRing, ringBBox, signedArea, unionBBox, type PolygonRec, type Ring } from './geom';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CACHE = join(HERE, '..', 'cache');
@@ -61,7 +43,32 @@ const DISTINCT: [string, string][] = [
 /** Keep outlying islands within this distance of the country when they are not tiny. */
 const OUTLIER_KM = 1500;
 /** Archipelago states: keep every island within OUTLIER_KM regardless of size. */
-const ARCHIPELAGOS = new Set(['MDV', 'KIR', 'MHL', 'FSM', 'TUV', 'SYC', 'CPV', 'BHS', 'SLB', 'VUT', 'FJI', 'TON', 'WSM', 'PLW', 'COM', 'STP', 'NRU', 'MUS', 'ATG', 'KNA', 'VCT', 'GRD', 'TTO', 'MLT']);
+const ARCHIPELAGOS = new Set([
+  'MDV',
+  'KIR',
+  'MHL',
+  'FSM',
+  'TUV',
+  'SYC',
+  'CPV',
+  'BHS',
+  'SLB',
+  'VUT',
+  'FJI',
+  'TON',
+  'WSM',
+  'PLW',
+  'COM',
+  'STP',
+  'NRU',
+  'MUS',
+  'ATG',
+  'KNA',
+  'VCT',
+  'GRD',
+  'TTO',
+  'MLT',
+]);
 
 interface Entity {
   id: string;
@@ -278,9 +285,7 @@ function buildPuzzle(cfg: PuzzleGeoConfig, entities: Map<string, Entity>): Built
       properties: { id: p.id },
       geometry: {
         type: 'MultiPolygon',
-        coordinates: p.polys.map((poly) =>
-          [poly.outer, ...poly.holes].map((r) => closeRing(r.map(([x, y]) => [tx(x), ty(y)] as [number, number]))),
-        ),
+        coordinates: p.polys.map((poly) => [poly.outer, ...poly.holes].map((r) => closeRing(r.map(([x, y]) => [tx(x), ty(y)] as [number, number])))),
       },
     })),
   };
@@ -298,7 +303,9 @@ function buildPuzzle(cfg: PuzzleGeoConfig, entities: Map<string, Entity>): Built
 
   const lodFeatures = cfg.lodWeights.map((w) => {
     const simp = simplify(pre, w);
-    return feature(simp as never, (simp.objects as never as { countries: never }).countries) as unknown as GeoJSON.FeatureCollection<GeoJSON.MultiPolygon | GeoJSON.Polygon>;
+    return feature(simp as never, (simp.objects as never as { countries: never }).countries) as unknown as GeoJSON.FeatureCollection<
+      GeoJSON.MultiPolygon | GeoJSON.Polygon
+    >;
   });
 
   // Adjacency from the finest topology (shared arcs).
@@ -324,7 +331,14 @@ function buildPuzzle(cfg: PuzzleGeoConfig, entities: Map<string, Entity>): Built
       // Collapsed microstates: fall back to the unsimplified outline.
       if (polygons.length === 0 || maxArea < 1e-6) {
         const largest = [...p.polys].sort((a, b) => b.area - a.area)[0];
-        polygons = [[orient(largest.outer.map(([x, y]) => [tx(x), ty(y)] as [number, number]), true)]];
+        polygons = [
+          [
+            orient(
+              largest.outer.map(([x, y]) => [tx(x), ty(y)] as [number, number]),
+              true,
+            ),
+          ],
+        ];
       }
       return { polygons };
     });
@@ -432,7 +446,10 @@ function toPieceFile(p: BuiltPuzzle['pieces'][number], colourSlot: number): Piec
 
   // Label at the pole of inaccessibility of the largest polygon.
   const largest = [...finest].sort((a, b) => Math.abs(signedArea(b[0])) - Math.abs(signedArea(a[0])))[0];
-  const pl = polylabel(largest.map((r) => r.map(([x, y]) => [x, y])), 0.05) as number[] & { distance: number };
+  const pl = polylabel(
+    largest.map((r) => r.map(([x, y]) => [x, y])),
+    0.05,
+  ) as number[] & { distance: number };
 
   let capital: [number, number] | null = null;
   if (p.capital) {
@@ -440,7 +457,11 @@ function toPieceFile(p: BuiltPuzzle['pieces'][number], colourSlot: number): Piec
     const inside = finest.some((poly) => pointInRing(cx, cy, poly[0]) && !poly.slice(1).some((h) => pointInRing(cx, cy, h)));
     if (inside) capital = [cx, cy];
     else {
-      const [d, nx, ny] = nearestOnRings(cx, cy, finest.map((poly) => poly[0]));
+      const [d, nx, ny] = nearestOnRings(
+        cx,
+        cy,
+        finest.map((poly) => poly[0]),
+      );
       const diag = bboxDiag(box);
       if (d < Math.max(0.6, diag * 0.04)) capital = [nx, ny];
     }
@@ -454,9 +475,7 @@ function toPieceFile(p: BuiltPuzzle['pieces'][number], colourSlot: number): Piec
     label: [round(pl[0] - ax), round(pl[1] - ay), round(pl.distance, 3)],
     capital: capital ? [round(capital[0] - ax), round(capital[1] - ay)] : null,
     color: colourSlot,
-    rings: p.lods.map((lod) =>
-      lod.polygons.flat().map((r) => encodeRing(r.flatMap(([x, y]) => [x - ax, y - ay]))),
-    ),
+    rings: p.lods.map((lod) => lod.polygons.flat().map((r) => encodeRing(r.flatMap(([x, y]) => [x - ax, y - ay])))),
   };
 }
 

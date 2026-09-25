@@ -1,10 +1,4 @@
-import {
-  geoAzimuthalEqualArea,
-  geoConicEqualArea,
-  geoConicConformal,
-  geoNaturalEarth1,
-  type GeoProjection,
-} from 'd3-geo';
+import { geoAzimuthalEqualArea, geoConicEqualArea, geoConicConformal, geoNaturalEarth1, type GeoProjection } from 'd3-geo';
 import { COUNTRIES, type ContinentId } from '@geolearn/shared/geo/countries';
 import type { PuzzleId } from '@geolearn/shared/puzzles';
 
@@ -50,8 +44,15 @@ export const PUZZLE_CONFIGS: PuzzleGeoConfig[] = [
     // ETRS89-LAEA style: the EU's standard statistical map projection.
     projection: () => geoAzimuthalEqualArea().rotate([-12, -52]),
     frame: {
-      west: [[-25, 64.5], [-10, 37], [-10, 43.5]],
-      east: [[51.5, 44], [50.6, 40.3]],
+      west: [
+        [-25, 64.5],
+        [-10, 37],
+        [-10, 43.5],
+      ],
+      east: [
+        [51.5, 44],
+        [50.6, 40.3],
+      ],
       north: [[25, 71.6]],
       south: [[20, 34.4]],
     },
@@ -62,14 +63,33 @@ export const PUZZLE_CONFIGS: PuzzleGeoConfig[] = [
     id: 'africa',
     members: members('africa'),
     projection: () => geoConicEqualArea().parallels([20, -23]).rotate([-22, 0]),
-    frame: { west: [[-26, 15]], east: [[64, -12], [64, -20]], north: [[10, 38.5]], south: [[22, -36]] },
+    frame: {
+      west: [[-26, 15]],
+      east: [
+        [64, -12],
+        [64, -20],
+      ],
+      north: [[10, 38.5]],
+      south: [[22, -36]],
+    },
     ...CONTINENT_LOD,
   },
   {
     id: 'south-america',
     members: members('south-america'),
     projection: () => geoConicEqualArea().parallels([-5, -42]).rotate([60, 0]),
-    frame: { west: [[-82.5, -5], [-82.5, 5]], east: [[-32.2, -3.8]], north: [[-66, 13.5], [-72, 13.5]], south: [[-68, -56.6]] },
+    frame: {
+      west: [
+        [-82.5, -5],
+        [-82.5, 5],
+      ],
+      east: [[-32.2, -3.8]],
+      north: [
+        [-66, 13.5],
+        [-72, 13.5],
+      ],
+      south: [[-68, -56.6]],
+    },
     allowClip: ['ECU', 'BRA', 'CHL', 'VEN', 'COL'],
     ...CONTINENT_LOD,
   },
@@ -77,7 +97,12 @@ export const PUZZLE_CONFIGS: PuzzleGeoConfig[] = [
     id: 'north-america',
     members: members('north-america'),
     projection: () => geoConicConformal().parallels([20, 60]).rotate([96, 0]),
-    frame: { west: [[-172.5, 52], [-172.5, 57]] },
+    frame: {
+      west: [
+        [-172.5, 52],
+        [-172.5, 57],
+      ],
+    },
     exclude: [[-179.9, 15, -150, 30]],
     allowClip: ['USA'],
     ...CONTINENT_LOD,
@@ -92,7 +117,18 @@ export const PUZZLE_CONFIGS: PuzzleGeoConfig[] = [
     id: 'oceania',
     members: members('oceania'),
     projection: () => geoAzimuthalEqualArea().rotate([-160, 16]),
-    frame: { west: [[112, -25]], east: [[-168, -14], [-168, 0]], north: [[160, 15], [170, 15]], south: [[168, -48.5]] },
+    frame: {
+      west: [[112, -25]],
+      east: [
+        [-168, -14],
+        [-168, 0],
+      ],
+      north: [
+        [160, 15],
+        [170, 15],
+      ],
+      south: [[168, -48.5]],
+    },
     allowClip: ['KIR', 'NZL', 'AUS'],
     ...CONTINENT_LOD,
   },
