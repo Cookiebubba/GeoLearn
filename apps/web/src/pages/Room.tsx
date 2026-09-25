@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, Copy, Crown, Share2, UserMinus } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, Check, Copy, Crown, Share2, UserMinus } from 'lucide-react';
 import {
   isPuzzleId,
   modeLabel,
@@ -226,8 +226,14 @@ function Lobby({ onLeave }: { onLeave: () => void }) {
         </span>
         {p.host && <Crown size={16} color="#c99a2e" aria-label="Host" />}
         {s.mode === 'teams' && (isHost || p.id === you) && (
-          <button className="btn small secondary" onClick={() => roomClient.send({ t: 'team', id: p.id, team: p.team === 0 ? 1 : 0 })}>
-            Switch
+          <button
+            className="btn small secondary switch-btn"
+            aria-label={p.id === you ? `Switch to Team ${TEAM_NAMES[p.team === 0 ? 1 : 0]}` : `Move ${p.name} to Team ${TEAM_NAMES[p.team === 0 ? 1 : 0]}`}
+            title={`Move to Team ${TEAM_NAMES[p.team === 0 ? 1 : 0]}`}
+            onClick={() => roomClient.send({ t: 'team', id: p.id, team: p.team === 0 ? 1 : 0 })}
+          >
+            <ArrowLeftRight size={15} />
+            <span className="switch-label">Switch</span>
           </button>
         )}
         {isHost && p.id !== you && (
@@ -277,17 +283,22 @@ function Lobby({ onLeave }: { onLeave: () => void }) {
             Players
           </div>
           {s.mode === 'teams' ? (
-            <div className="teams" style={{ marginTop: 10 }}>
-              {[0, 1].map((t) => (
-                <div key={t}>
-                  <div className="muted" style={{ fontSize: 13, fontWeight: 650, marginBottom: 6 }}>
-                    Team {TEAM_NAMES[t]}
+            <div className="team-cols" style={{ marginTop: 10 }}>
+              {[0, 1].map((t) => {
+                const members = room.players.filter((p) => p.team === t);
+                const open = Math.max(0, s.partySize / 2 - members.length);
+                return (
+                  <div key={t} className="team-col">
+                    <div className="muted" style={{ fontSize: 13, fontWeight: 650, marginBottom: 6 }}>
+                      Team {TEAM_NAMES[t]}
+                    </div>
+                    <div className="players" style={{ marginTop: 0 }}>
+                      {members.map((p, i) => playerRow(p, i))}
+                      {Array.from({ length: open }, (_, i) => playerRow(null, t * 10 + i))}
+                    </div>
                   </div>
-                  <div className="players" style={{ marginTop: 0 }}>
-                    {room.players.filter((p) => p.team === t).map((p, i) => playerRow(p, i))}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="players">{seats.map((p, i) => playerRow(p, i))}</div>

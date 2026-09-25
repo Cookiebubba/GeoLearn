@@ -719,6 +719,7 @@ h3 {
 
 .lobby {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin-top: 8px;
 }
@@ -732,6 +733,8 @@ h3 {
 
 .lobby-card {
   padding: 20px;
+  min-width: 0;
+  container: lobby / inline-size;
 }
 
 .code-display {
@@ -750,6 +753,31 @@ h3 {
   font-weight: 700;
   letter-spacing: 0.22em;
   font-variant-numeric: tabular-nums;
+}
+
+/* Narrow lobby cards (iPhone SE): code above a full-width share button, and
+   segmented controls that fill the row instead of spilling out of it. */
+@container lobby (max-width: 290px) {
+  .code-display {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .code-display .code {
+    text-align: center;
+    padding-left: 0.22em;
+  }
+
+  .setting-row .segmented {
+    display: flex;
+    width: 100%;
+  }
+
+  .setting-row .segmented button {
+    flex: 1;
+    min-width: 0;
+    padding: 0 6px;
+  }
 }
 
 .players {
@@ -797,8 +825,42 @@ h3 {
 
 .teams {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+/* Lobby teams: stacked on phones, side by side when the card is wide enough. */
+.team-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.team-col {
+  min-width: 0;
+  container: team / inline-size;
+}
+
+@container lobby (min-width: 600px) {
+  .team-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.switch-btn {
+  flex: none;
+  gap: 6px;
+  padding-inline: 10px;
+}
+
+.switch-label {
+  display: none;
+}
+
+@container team (min-width: 330px) {
+  .switch-label {
+    display: inline;
+  }
 }
 
 .setting-row {
