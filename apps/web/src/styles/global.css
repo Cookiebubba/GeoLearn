@@ -55,6 +55,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* Keep iOS from inflating text in landscape. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
 }
@@ -215,8 +218,10 @@ h3 {
   border-color: transparent;
 }
 
-.btn.ghost:hover {
-  background: var(--bg-soft);
+@media (hover: hover) {
+  .btn.ghost:hover {
+    background: var(--bg-soft);
+  }
 }
 
 .btn.accent {
@@ -419,9 +424,11 @@ h3 {
     box-shadow 0.25s ease;
 }
 
-.game-card.primary:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+@media (hover: hover) {
+  .game-card.primary:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
 }
 
 .game-card .art {
@@ -604,9 +611,11 @@ h3 {
     box-shadow 0.25s ease;
 }
 
-.map-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+@media (hover: hover) {
+  .map-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
 }
 
 .map-card:active {
@@ -913,6 +922,13 @@ h3 {
   font-weight: 550;
 }
 
+/* iOS zooms the page into form fields smaller than 16px. */
+@media (pointer: coarse) {
+  .select {
+    font-size: 16px;
+  }
+}
+
 .toggle {
   position: relative;
   width: 46px;
@@ -1184,8 +1200,10 @@ h3 {
   text-align: left;
 }
 
-.menu-item:hover {
-  background: var(--bg-soft);
+@media (hover: hover) {
+  .menu-item:hover {
+    background: var(--bg-soft);
+  }
 }
 
 .check {
@@ -1225,8 +1243,10 @@ h3 {
   font-weight: 550;
 }
 
-.swatch-row:hover {
-  background: var(--bg-soft);
+@media (hover: hover) {
+  .swatch-row:hover {
+    background: var(--bg-soft);
+  }
 }
 
 .swatch-row[aria-pressed='true'] {
