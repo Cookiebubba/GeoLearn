@@ -71,6 +71,8 @@ export function handleConnection(socket: WebSocket, deps: ConnectionDeps) {
   let seat: { room: Room; playerId: string } | null = null;
   let queue: Promise<void> = Promise.resolve();
   const bucket = new Bucket(90, 180);
+  // Creating / joining rooms is much rarer than moving pieces.
+  const roomOps = new Bucket(0.5, 6);
   let alive = true;
 
   const send = (msg: ServerMsg) => {
@@ -108,6 +110,10 @@ export function handleConnection(socket: WebSocket, deps: ConnectionDeps) {
         send({ t: 'pong', c: msg.c, s: deps.now() });
         return;
       case 'create': {
+        if (!roomOps.take()) {
+          fail('rate-limited', 'Too many rooms too quickly. Try again in a moment.');
+          return;
+        }
         const who = await identify(msg.name, msg.token);
         if (!who) return;
         if (seat) seat.room.leave(seat.playerId);
@@ -119,6 +125,10 @@ export function handleConnection(socket: WebSocket, deps: ConnectionDeps) {
         return;
       }
       case 'join': {
+        if (!roomOps.take()) {
+          fail('rate-limited', 'Too many rooms too quickly. Try again in a moment.');
+          return;
+        }
         const who = await identify(msg.name, msg.token);
         if (!who) return;
         const room = deps.rooms.get(normalizeRoomCode(msg.code));

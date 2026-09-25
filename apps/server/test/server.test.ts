@@ -254,4 +254,14 @@ describe('server', () => {
     expect(err2.code).toBe('room-not-found');
     c.close();
   });
+
+  it('slows down a client that creates rooms in a burst', async () => {
+    const c = new Client('Burst');
+    await c.open();
+    const settings = { puzzleId: 'oceania', partySize: 2, mode: 'coop', isPublic: false } as const;
+    for (let i = 0; i < 8; i++) c.send({ t: 'create', name: 'Burst', token: c.token, settings });
+    const err = await c.waitFor('error', (m) => m.code === 'rate-limited');
+    expect(err.message).toMatch(/try again/i);
+    c.close();
+  });
 });

@@ -1,23 +1,30 @@
 import { randomInt } from 'node:crypto';
 import type { OpenRoomSummary, RoomSettings } from '@geolearn/shared/game/types';
 import { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH } from '@geolearn/shared/protocol';
-import { Room, type RoomDeps } from './room';
+import { Room, RoomError, type RoomDeps } from './room';
 
 /** Rooms with nobody connected are closed after this long. */
 const EMPTY_ROOM_TTL_MS = 3 * 60_000;
 /** Any room idle this long is closed. */
 const IDLE_ROOM_TTL_MS = 2 * 60 * 60_000;
 
+/** A ceiling on live rooms, so a flood of new rooms can't exhaust memory. */
+const MAX_ROOMS = 5000;
+
 export class RoomManager {
   private readonly rooms = new Map<string, Room>();
   private readonly timer: ReturnType<typeof setInterval>;
 
-  constructor(private readonly deps: RoomDeps) {
+  constructor(
+    private readonly deps: RoomDeps,
+    private readonly maxRooms = MAX_ROOMS,
+  ) {
     this.timer = setInterval(() => this.sweep(), 10_000);
     this.timer.unref?.();
   }
 
   create(settings: RoomSettings): Room {
+    if (this.rooms.size >= this.maxRooms) throw new RoomError('rate-limited', 'GeoLearn is very busy right now. Try again in a minute.');
     let code = '';
     do {
       code = Array.from({ length: ROOM_CODE_LENGTH }, () => ROOM_CODE_ALPHABET[randomInt(ROOM_CODE_ALPHABET.length)]).join('');

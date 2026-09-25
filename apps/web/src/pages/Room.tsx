@@ -140,7 +140,7 @@ export function RoomPage({ code: rawCode }: { code: string }) {
           {fatal ? (
             <div>
               <h2 className="serif" style={{ fontWeight: 520, fontSize: 28 }}>
-                {error.code === 'room-not-found' ? 'That room has closed' : 'Can’t join'}
+                {error.code === 'room-not-found' ? 'That room has closed' : error.code === 'rate-limited' ? 'One moment' : 'Can’t join'}
               </h2>
               <p className="muted">{error.message}</p>
               <Link to="/puzzle" className="btn" onClick={() => roomClient.leave()}>

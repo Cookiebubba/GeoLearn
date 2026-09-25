@@ -299,7 +299,7 @@ class RoomClient {
       }
       case 'error':
         store.setState({ error: { code: msg.code, message: msg.message, at: Date.now() } });
-        if (['room-not-found', 'room-full', 'name-taken', 'name-invalid', 'not-allowed'].includes(msg.code) && !store.getState().room) {
+        if (['room-not-found', 'room-full', 'name-taken', 'name-invalid', 'not-allowed', 'rate-limited'].includes(msg.code) && !store.getState().room) {
           this.closedByUs = true;
           this.ws?.close();
           store.setState({ conn: 'closed' });

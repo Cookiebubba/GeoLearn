@@ -47,7 +47,21 @@ export async function buildApp(config: ServerConfig): Promise<App> {
   await fastify.register(fastifyCompress, { global: true, threshold: 1024, encodings: ['br', 'gzip'], brotliOptions: { params: { 1: 5 } } });
   await fastify.register(fastifyWebsocket, { options: { maxPayload: 16 * 1024 } });
 
-  fastify.get('/ws', { websocket: true }, (socket) => {
+  // A generous cap per address (whole classrooms can share one IP).
+  const socketsPerIp = new Map<string, number>();
+  fastify.get('/ws', { websocket: true }, (socket, req) => {
+    const ip = req.ip;
+    const open = (socketsPerIp.get(ip) ?? 0) + 1;
+    if (open > config.maxSocketsPerIp) {
+      socket.close(1013, 'Too many connections');
+      return;
+    }
+    socketsPerIp.set(ip, open);
+    socket.on('close', () => {
+      const left = (socketsPerIp.get(ip) ?? 1) - 1;
+      if (left > 0) socketsPerIp.set(ip, left);
+      else socketsPerIp.delete(ip);
+    });
     handleConnection(socket, { rooms, players, now, log: fastify.log });
   });
 

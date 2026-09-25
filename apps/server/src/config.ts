@@ -25,6 +25,8 @@ export interface ServerConfig {
   databaseSsl: boolean;
   logLevel: string;
   trustProxy: boolean;
+  /** Simultaneous WebSocket connections allowed from one IP address. */
+  maxSocketsPerIp: number;
 }
 
 /**
@@ -46,6 +48,7 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     databaseSsl: env('DATABASE_SSL', 'false') === 'true',
     logLevel: env('LOG_LEVEL', 'info')!,
     trustProxy: env('TRUST_PROXY', 'true') === 'true',
+    maxSocketsPerIp: Number(env('MAX_SOCKETS_PER_IP', '80')),
   };
   return { ...defaults, ...overrides };
 }

@@ -142,14 +142,15 @@ You can also run `docker build -t geolearn . && docker run -p 8787:8787 -e DATAB
 
 Every setting is optional. See `.env.example`.
 
-| Variable        | Default            | Purpose                                                                |
-| --------------- | ------------------ | ---------------------------------------------------------------------- |
-| `DATABASE_URL`  | –                  | Postgres connection string. If it isn't set, embedded PGlite is used.  |
-| `DATABASE_SSL`  | `false`            | Set to `true` for hosted Postgres that requires TLS, such as Supabase. |
-| `DATA_DIR`      | `.data/pglite`     | Where PGlite keeps its files.                                          |
-| `PORT` / `HOST` | `8787` / `0.0.0.0` | Where the server listens.                                              |
-| `TRUST_PROXY`   | `true`             | Trust `X-Forwarded-*` headers from Railway, nginx or Caddy.            |
-| `LOG_LEVEL`     | `info`             | Pino log level.                                                        |
+| Variable             | Default            | Purpose                                                                                                  |
+| -------------------- | ------------------ | -------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`       | –                  | Postgres connection string. If it isn't set, embedded PGlite is used.                                    |
+| `DATABASE_SSL`       | `false`            | Set to `true` for hosted Postgres that requires TLS, such as Supabase.                                   |
+| `DATA_DIR`           | `.data/pglite`     | Where PGlite keeps its files.                                                                            |
+| `PORT` / `HOST`      | `8787` / `0.0.0.0` | Where the server listens.                                                                                |
+| `TRUST_PROXY`        | `true`             | Trust `X-Forwarded-*` headers from Railway, nginx or Caddy.                                              |
+| `LOG_LEVEL`          | `info`             | Pino log level.                                                                                          |
+| `MAX_SOCKETS_PER_IP` | `80`               | Simultaneous game connections from one IP address. It is generous, because a classroom can share one IP. |
 
 ## Map data
 
