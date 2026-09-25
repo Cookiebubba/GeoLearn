@@ -415,7 +415,9 @@ export class Renderer {
 
   private drawSeated(p: ScenePiece, v: View, lod: number, dpr: number) {
     const ctx = this.ctx;
-    const scale = p.press >= 0 ? 1 - 0.03 * Math.sin(Math.PI * p.press) : 1;
+    // The "seated" press is a fixed ~1.5px squeeze, so big countries don't gape.
+    const sizePx = Math.max(1, p.model.size * v.zoom);
+    const scale = p.press >= 0 ? 1 - Math.min(0.03, 3 / sizePx) * Math.sin(Math.PI * p.press) : 1;
     this.setPiece(v, dpr, p.rx, p.ry, scale);
     const path = p.geom.path(lod);
     ctx.fillStyle = p.colors.fill;
@@ -425,6 +427,13 @@ export class Renderer {
     ctx.lineWidth = 0.9 / (v.zoom * scale);
     ctx.lineJoin = 'round';
     ctx.stroke(path);
+    const light = (p.glow >= 0 ? 0.38 * Math.sin(Math.PI * p.glow) : 0) + (p.press >= 0 ? 0.16 * Math.sin(Math.PI * p.press) : 0);
+    if (light > 0.005) {
+      ctx.fillStyle = `rgba(255,255,255,${light.toFixed(3)})`;
+      ctx.fill(path, 'nonzero');
+      ctx.strokeStyle = ctx.fillStyle;
+      ctx.stroke(path);
+    }
   }
 
   private drawRestShadow(p: ScenePiece, v: View, lod: number, dpr: number, budget: { n: number }) {
@@ -755,6 +764,7 @@ export class Renderer {
     }
     ctx.globalAlpha = 1;
 
+    const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
     for (const t of fx.toasts) {
       const p = t.piece;
       const inT = Math.min(1, t.t / 0.25);
@@ -772,28 +782,37 @@ export class Renderer {
       }
       const w = Math.max(tw, sw) + 26;
       const h = t.subtitle ? 44 : 30;
+      // Stack toasts that would overlap.
+      let yy = y;
+      for (let guard = 0; guard < 6; guard++) {
+        const hit = placed.find((r) => x - w / 2 < r.x1 && x + w / 2 > r.x0 && yy - h < r.y1 && yy > r.y0);
+        if (!hit) break;
+        yy = hit.y0 - 6;
+      }
+      placed.push({ x0: x - w / 2, y0: yy - h, x1: x + w / 2, y1: yy });
+      const y2 = yy;
       ctx.globalAlpha = alpha;
       ctx.save();
       ctx.shadowColor = 'rgba(20,20,20,0.16)';
       ctx.shadowBlur = 14;
       ctx.shadowOffsetY = 4;
-      roundRect(ctx, x - w / 2, y - h, w, h, 12);
+      roundRect(ctx, x - w / 2, y2 - h, w, h, 12);
       ctx.fillStyle = 'rgba(255,255,255,0.96)';
       ctx.fill();
       ctx.restore();
       ctx.beginPath();
-      ctx.arc(x - w / 2 + 11, y - h + 15, 3.2, 0, Math.PI * 2);
+      ctx.arc(x - w / 2 + 11, y2 - h + 15, 3.2, 0, Math.PI * 2);
       ctx.fillStyle = p.colors.fill;
       ctx.fill();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = '#1f2125';
       ctx.font = `650 14px ${FONT}`;
-      ctx.fillText(t.title, x + 3, y - h + 15.5);
+      ctx.fillText(t.title, x + 3, y2 - h + 15.5);
       if (t.subtitle) {
         ctx.font = `450 11.5px ${FONT}`;
         ctx.fillStyle = '#6b6e75';
-        ctx.fillText(t.subtitle, x + 3, y - h + 31);
+        ctx.fillText(t.subtitle, x + 3, y2 - h + 31);
       }
       ctx.globalAlpha = 1;
     }

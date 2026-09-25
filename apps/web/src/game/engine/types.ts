@@ -57,8 +57,10 @@ export interface ScenePiece {
   snap: { t: number; fx: number; fy: number } | null;
   /** 0..1 progress of the little "seated" press after snapping; -1 when idle. */
   press: number;
-  /** Seconds to wait before starting a press (completion wave). */
+  /** Seconds to wait before this piece's completion-wave glow starts. */
   pressDelay: number;
+  /** 0..1 progress of the completion-wave light pulse; -1 when idle. */
+  glow: number;
   /** Placed locally, waiting for the server to agree. */
   pending: boolean;
   /** Where the piece was when this client grabbed it (to undo a denied grab). */

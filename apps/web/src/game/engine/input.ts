@@ -41,6 +41,9 @@ export class InputController {
   private samples: { t: number; x: number; y: number }[] = [];
   private lastTap: { t: number; x: number; y: number } | null = null;
   private edgeV = { x: 0, y: 0 };
+  /** Edge auto-pan only arms once the held piece has been away from the edges. */
+  private edgeArmed = false;
+  private edgeSince = 0;
   private cleanup: (() => void)[] = [];
 
   constructor(private readonly engine: PuzzleEngine) {}
@@ -148,6 +151,7 @@ export class InputController {
         p.role = 'hold';
         this.holdId = p.id;
         this.holdStart = performance.now();
+        this.resetEdge(p);
       }
       return;
     }
@@ -165,6 +169,7 @@ export class InputController {
       p.role = 'hold';
       this.holdId = p.id;
       this.holdStart = performance.now() - PINCH_GRACE_MS;
+      this.resetEdge(p);
       this.engine.moveHold(p.x, p.y);
     } else {
       p.role = 'camera';
@@ -318,21 +323,44 @@ export class InputController {
     if (Math.hypot(vx, vy) > 180) this.engine.camera.fling(vx, vy);
   }
 
-  private updateEdge(p: Ptr) {
+  private edgePush(p: Ptr): { x: number; y: number } {
     const cam = this.engine.camera;
     const zone = p.touch ? 30 : 40;
     const top = cam.insets.top;
     const bottom = cam.height - cam.insets.bottom;
     const ex = p.x < zone ? -(zone - p.x) / zone : p.x > cam.width - zone ? (p.x - (cam.width - zone)) / zone : 0;
     const ey = p.y < top + zone ? -(top + zone - p.y) / zone : p.y > bottom - zone ? (p.y - (bottom - zone)) / zone : 0;
-    const speed = 620;
-    this.edgeV = { x: Math.max(-1, Math.min(1, ex)) * speed, y: Math.max(-1, Math.min(1, ey)) * speed };
+    return { x: Math.max(-1, Math.min(1, ex)), y: Math.max(-1, Math.min(1, ey)) };
   }
 
-  /** Auto-pans while a held piece is pushed against a screen edge. */
+  /** A new hold: picking up a piece that already sits by an edge mustn't scroll. */
+  private resetEdge(p: Ptr) {
+    const push = this.edgePush(p);
+    this.edgeArmed = !push.x && !push.y;
+    this.edgeV = { x: 0, y: 0 };
+    this.edgeSince = 0;
+  }
+
+  private updateEdge(p: Ptr) {
+    const push = this.edgePush(p);
+    if (!push.x && !push.y) {
+      this.edgeArmed = true;
+      this.edgeV = { x: 0, y: 0 };
+      this.edgeSince = 0;
+      return;
+    }
+    if (!this.edgeArmed) return;
+    if (!this.edgeSince) this.edgeSince = performance.now();
+    const speed = 620;
+    this.edgeV = { x: push.x * speed, y: push.y * speed };
+  }
+
+  /** Auto-pans while a held piece is pushed against a screen edge (easing in). */
   update(dt: number): boolean {
     if (this.holdId === null || (!this.edgeV.x && !this.edgeV.y)) return false;
-    this.engine.camera.panBy(-this.edgeV.x * dt, -this.edgeV.y * dt);
+    const ramp = Math.min(1, (performance.now() - this.edgeSince) / 280);
+    const k = ramp * ramp;
+    this.engine.camera.panBy(-this.edgeV.x * k * dt, -this.edgeV.y * k * dt);
     return true;
   }
 

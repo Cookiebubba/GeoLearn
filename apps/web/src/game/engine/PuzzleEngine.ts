@@ -149,6 +149,7 @@ export class PuzzleEngine {
         snap: null,
         press: -1,
         pressDelay: 0,
+        glow: -1,
         pending: false,
         origin: null,
         float: 0,
@@ -275,6 +276,7 @@ export class PuzzleEngine {
       p.still = !p.heldBy;
       p.hover = 0;
       p.pressDelay = 0;
+      p.glow = -1;
       this.zCounter = Math.max(this.zCounter, ps.z);
       if (p.placed) this.placedCount++;
     }
@@ -621,10 +623,11 @@ export class PuzzleEngine {
   private celebrate(last: ScenePiece) {
     this.complete = true;
     const W = this.model.board.width;
+    // A wave of light rolls out from the last piece placed.
     for (const p of this.list) {
       const d = Math.hypot(p.model.tx - last.model.tx, p.model.ty - last.model.ty);
-      p.pressDelay = 0.35 + (d / W) * 0.9;
-      p.press = -1;
+      p.pressDelay = 0.35 + (d / W) * 1.1;
+      p.glow = -1;
     }
     setTimeout(() => {
       if (this.destroyed) return;
@@ -730,16 +733,22 @@ export class PuzzleEngine {
 
       if (p.pressDelay > 0) {
         p.pressDelay -= dt;
-        if (p.pressDelay <= 0) p.press = 0;
+        if (p.pressDelay <= 0) p.glow = 0;
         animating = true;
-      } else if (p.press >= 0) {
+      }
+      if (p.glow >= 0) {
+        p.glow += dt / 0.5;
+        if (p.glow >= 1) p.glow = -1;
+        animating = true;
+      }
+      if (p.press >= 0) {
         p.press += dt / 0.32;
         if (p.press >= 1) p.press = -1;
         animating = true;
       }
 
       const still =
-        !p.heldBy && !p.snap && p.press < 0 && p.pressDelay <= 0 && p.lift === 0 && p.liftV === 0 && p.hover === 0 && p.vx === 0 && p.vy === 0 && p.rx === p.x && p.ry === p.y;
+        !p.heldBy && !p.snap && p.press < 0 && p.glow < 0 && p.pressDelay <= 0 && p.lift === 0 && p.liftV === 0 && p.hover === 0 && p.vx === 0 && p.vy === 0 && p.rx === p.x && p.ry === p.y;
       if (still !== p.still) {
         p.still = still;
         this.orderDirty = true;
@@ -834,6 +843,8 @@ export class PuzzleEngine {
     return {
       x: this.camera.toScreenX(p.rx + lx),
       y: this.camera.toScreenY(p.ry + ly),
+      logicalX: this.camera.toScreenX(p.x + lx),
+      logicalY: this.camera.toScreenY(p.y + ly),
       homeX: this.camera.toScreenX(p.model.tx + lx),
       homeY: this.camera.toScreenY(p.model.ty + ly),
       placed: p.placed,
