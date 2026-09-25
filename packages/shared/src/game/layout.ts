@@ -208,7 +208,7 @@ export function scatterPieces(model: PuzzleModel, seed: number, targetAspect?: n
     boundsArea = (bounds.x1 - bounds.x0) * (bounds.y1 - bounds.y0);
   }
 
-  // Trim the frame back to what the pieces actually use (keeping the board centred).
+  // Trim the frame back to what the pieces actually use.
   const used = { x0: 0, y0: 0, x1: W, y1: H };
   for (const piece of model.pieces) {
     const [x, y] = positions.get(piece.id)!;

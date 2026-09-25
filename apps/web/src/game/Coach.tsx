@@ -67,7 +67,7 @@ export function useCoach(playing: boolean) {
       if (!useTips.getState().seen.zoom) later(1400, () => show('zoom'));
     },
     dropped(onBoard) {
-      if (onBoard && playing) later(500, () => show('lift'));
+      if (onBoard && playing && !useTips.getState().seen.lift) later(500, () => show('lift'));
     },
     zoomed() {
       if (tipRef.current === 'zoom') later(600, () => hide('zoom'));
