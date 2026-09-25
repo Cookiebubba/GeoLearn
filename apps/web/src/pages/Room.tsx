@@ -198,8 +198,9 @@ function Lobby({ onLeave }: { onLeave: () => void }) {
       try {
         await navigator.share({ title: 'GeoLearn', text, url: link });
         return;
-      } catch {
-        /* cancelled */
+      } catch (err) {
+        // Closing the share sheet isn't a failure; anything else falls back to copying.
+        if ((err as Error)?.name === 'AbortError') return;
       }
     }
     try {

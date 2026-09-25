@@ -222,6 +222,40 @@ export function PuzzleView({ room, you, onLeave }: { room: RoomSnapshot; you: st
     }
   }, [status, room.results]);
 
+  // An accidental "back" (iOS edge swipe while dragging, Android's back gesture)
+  // shouldn't throw a game away: the first one only asks, a second one leaves.
+  const [backWarn, setBackWarn] = useState(false);
+  useEffect(() => {
+    if (status !== 'playing') return;
+    const guard = () => window.history.pushState({ geolearnGuard: true }, '', window.location.href);
+    let armed = false;
+    let rearm: ReturnType<typeof setTimeout> | null = null;
+    // Deferred, so a mount that's immediately undone (React dev mode) leaves no trace.
+    const arm = setTimeout(() => {
+      guard();
+      armed = true;
+    }, 0);
+    const onPop = () => {
+      if (!armed) return;
+      armed = false;
+      setBackWarn(true);
+      rearm = setTimeout(() => {
+        guard();
+        armed = true;
+        setBackWarn(false);
+      }, 3500);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      clearTimeout(arm);
+      if (rearm) clearTimeout(rearm);
+      window.removeEventListener('popstate', onPop);
+      setBackWarn(false);
+      // The game ended with us still here: drop the guard entry we added.
+      if (armed && (window.history.state as { geolearnGuard?: boolean } | null)?.geolearnGuard) window.history.back();
+    };
+  }, [status]);
+
   const leave = () => {
     if (status === 'playing' && !confirmLeave && progress.placed > 0 && progress.placed < progress.total) {
       setConfirmLeave(true);
@@ -321,6 +355,8 @@ export function PuzzleView({ room, you, onLeave }: { room: RoomSnapshot; you: st
           <span style={{ fontSize: 64 }}>Go</span>
         </div>
       )}
+
+      {backWarn && <div className="banner">Go back once more to leave the game</div>}
 
       {conn === 'reconnecting' && !offline && (
         <div className="banner">
