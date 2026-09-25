@@ -56,9 +56,9 @@ export function Leaderboards() {
         <h1>Leaderboards</h1>
       </div>
 
-      <div className="lb-tabs" role="tablist">
+      <div className="lb-tabs" role="tablist" aria-label="Leaderboard">
         {TABS.map((t) => (
-          <button key={t.id} className="lb-tab" role="tab" aria-pressed={kind === t.id} onClick={() => setKind(t.id)}>
+          <button key={t.id} className="lb-tab" role="tab" aria-selected={kind === t.id} onClick={() => setKind(t.id)}>
             {t.label}
           </button>
         ))}

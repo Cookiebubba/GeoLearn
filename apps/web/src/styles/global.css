@@ -1532,7 +1532,7 @@ h3 {
   white-space: nowrap;
 }
 
-.lb-tab[aria-pressed='true'] {
+.lb-tab[aria-selected='true'] {
   background: var(--ink);
   border-color: var(--ink);
   color: #fff;
