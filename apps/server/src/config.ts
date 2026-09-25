@@ -27,6 +27,8 @@ export interface ServerConfig {
   trustProxy: boolean;
   /** Simultaneous WebSocket connections allowed from one IP address. */
   maxSocketsPerIp: number;
+  /** Completed games faster than this per country are not ranked (scripts, not people). */
+  minMsPerPiece: number;
 }
 
 /**
@@ -49,6 +51,7 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     logLevel: env('LOG_LEVEL', 'info')!,
     trustProxy: env('TRUST_PROXY', 'true') === 'true',
     maxSocketsPerIp: Number(env('MAX_SOCKETS_PER_IP', '80')),
+    minMsPerPiece: Number(env('MIN_MS_PER_PIECE', '300')),
   };
   return { ...defaults, ...overrides };
 }

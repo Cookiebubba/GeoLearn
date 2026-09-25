@@ -28,7 +28,20 @@ function periodClause(period: LeaderboardPeriod, column: SQL): SQL {
 }
 
 export class ResultsStore {
-  constructor(private readonly handle: DbHandle) {}
+  /**
+   * @param minMsPerPiece Completed games faster than this per piece are kept but
+   * not ranked: no person places countries that quickly, so it's a script.
+   */
+  constructor(
+    private readonly handle: DbHandle,
+    private readonly minMsPerPiece = 300,
+  ) {}
+
+  /** SQL condition: the game was played at a humanly possible pace. */
+  private humanPace(alias = '', pieces: 'total_pieces' | 'placed_pieces' = 'total_pieces'): SQL {
+    const p = alias ? `${alias}.` : '';
+    return sql`${sql.raw(`${p}duration_ms`)} >= ${sql.raw(`${p}${pieces}`)} * ${this.minMsPerPiece}`;
+  }
 
   /** Stores a finished game and returns where it landed on the leaderboards. */
   async save(roomCode: string, results: GameResults, startedAt: number, participants: SavedParticipant[]): Promise<LeaderboardPlacement[]> {
@@ -75,7 +88,7 @@ export class ResultsStore {
       })),
     );
 
-    if (!results.completed) return [];
+    if (!results.completed || results.durationMs < results.totalPieces * this.minMsPerPiece) return [];
     return this.placements(results, party, teamKey, game.id);
   }
 
@@ -86,11 +99,11 @@ export class ResultsStore {
       const [fast] = await this.handle.rows<{ rank: number; total: number; pb: boolean }>(sql`
         WITH best AS (
           SELECT team_key, MIN(duration_ms) AS best FROM games
-          WHERE puzzle_id = ${puzzle} AND mode = 'coop' AND party = ${party} AND completed
+          WHERE puzzle_id = ${puzzle} AND mode = 'coop' AND party = ${party} AND completed AND ${this.humanPace()}
           GROUP BY team_key
         ), prev AS (
           SELECT MIN(duration_ms) AS best FROM games
-          WHERE puzzle_id = ${puzzle} AND mode = 'coop' AND party = ${party} AND completed
+          WHERE puzzle_id = ${puzzle} AND mode = 'coop' AND party = ${party} AND completed AND ${this.humanPace()}
             AND team_key = ${teamKey} AND id <> ${gameId}
         )
         SELECT
@@ -102,11 +115,11 @@ export class ResultsStore {
       const [prec] = await this.handle.rows<{ rank: number; total: number; pb: boolean }>(sql`
         WITH best AS (
           SELECT DISTINCT ON (team_key) team_key, precision, duration_ms FROM games
-          WHERE puzzle_id = ${puzzle} AND mode = 'coop' AND party = ${party} AND completed
+          WHERE puzzle_id = ${puzzle} AND mode = 'coop' AND party = ${party} AND completed AND ${this.humanPace()}
           ORDER BY team_key, precision DESC, duration_ms ASC
         ), prev AS (
           SELECT MAX(precision) AS best FROM games
-          WHERE puzzle_id = ${puzzle} AND mode = 'coop' AND party = ${party} AND completed
+          WHERE puzzle_id = ${puzzle} AND mode = 'coop' AND party = ${party} AND completed AND ${this.humanPace()}
             AND team_key = ${teamKey} AND id <> ${gameId}
         )
         SELECT
@@ -123,11 +136,11 @@ export class ResultsStore {
           WITH best AS (
             SELECT lower(gp.name) AS who, MAX(gp.points) AS best
             FROM game_players gp JOIN games g ON g.id = gp.game_id
-            WHERE g.puzzle_id = ${puzzle} AND g.mode IN ('versus', 'teams') AND g.party = ${party} AND g.completed
+            WHERE g.puzzle_id = ${puzzle} AND g.mode IN ('versus', 'teams') AND g.party = ${party} AND g.completed AND ${this.humanPace('g')}
             GROUP BY lower(gp.name)
           ), prev AS (
             SELECT MAX(gp.points) AS best FROM game_players gp JOIN games g ON g.id = gp.game_id
-            WHERE g.puzzle_id = ${puzzle} AND g.mode IN ('versus', 'teams') AND g.party = ${party} AND g.completed
+            WHERE g.puzzle_id = ${puzzle} AND g.mode IN ('versus', 'teams') AND g.party = ${party} AND g.completed AND ${this.humanPace('g')}
               AND lower(gp.name) = ${key} AND g.id <> ${gameId}
           )
           SELECT
@@ -159,7 +172,7 @@ export class ResultsStore {
         FROM (
           SELECT DISTINCT ON (team_key) team_key, team_names, duration_ms, precision, finished_at
           FROM games
-          WHERE puzzle_id = ${puzzle} AND mode = 'coop' AND party = ${party} AND completed
+          WHERE puzzle_id = ${puzzle} AND mode = 'coop' AND party = ${party} AND completed AND ${this.humanPace()}
             AND ${periodClause(period, sql`finished_at`)}
           ORDER BY team_key, ${order}
         ) best
@@ -170,7 +183,7 @@ export class ResultsStore {
         SELECT names, value, secondary, at FROM (
           SELECT DISTINCT ON (lower(gp.name)) gp.name AS names, gp.points AS value, gp.placed AS secondary, g.finished_at AS at
           FROM game_players gp JOIN games g ON g.id = gp.game_id
-          WHERE g.puzzle_id = ${puzzle} AND g.mode IN ('versus', 'teams') AND g.party = ${party} AND g.completed
+          WHERE g.puzzle_id = ${puzzle} AND g.mode IN ('versus', 'teams') AND g.party = ${party} AND g.completed AND ${this.humanPace('g')}
             AND ${periodClause(period, sql`g.finished_at`)}
           ORDER BY lower(gp.name), gp.points DESC, g.finished_at ASC
         ) best
@@ -183,7 +196,7 @@ export class ResultsStore {
                (COUNT(*) FILTER (WHERE g.completed))::int AS secondary,
                MAX(g.finished_at) AS at
         FROM game_players gp JOIN games g ON g.id = gp.game_id
-        WHERE ${periodClause(period, sql`g.finished_at`)}
+        WHERE ${periodClause(period, sql`g.finished_at`)} AND ${this.humanPace('g', 'placed_pieces')}
         GROUP BY lower(gp.name)
         ORDER BY value DESC, secondary DESC
         LIMIT ${lim}`);

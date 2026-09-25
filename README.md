@@ -67,6 +67,8 @@ There are four leaderboards. Every board except All-time is split by map and by 
 | Versus    | Each player's highest single-game score in Versus and Teams (Duo and Quad).           |
 | All-time  | Most countries placed, across every map and mode.                                     |
 
+Games finished at an impossible pace (under 0.3 seconds per country) are saved, but they don't appear on the leaderboards.
+
 **Names.** Names are first come, first served, from 2 to 20 characters. There are no passwords. A random token saved in your browser proves the name is yours, and the server only stores a hash of it. If you clear your browser storage, you give the name up.
 
 ## Quick start
@@ -143,15 +145,16 @@ You can also run `docker build -t geolearn . && docker run -p 8787:8787 -e DATAB
 
 Every setting is optional. See `.env.example`.
 
-| Variable             | Default            | Purpose                                                                                                  |
-| -------------------- | ------------------ | -------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`       | –                  | Postgres connection string. If it isn't set, embedded PGlite is used.                                    |
-| `DATABASE_SSL`       | `false`            | Set to `true` for hosted Postgres that requires TLS, such as Supabase.                                   |
-| `DATA_DIR`           | `.data/pglite`     | Where PGlite keeps its files.                                                                            |
-| `PORT` / `HOST`      | `8787` / `0.0.0.0` | Where the server listens.                                                                                |
-| `TRUST_PROXY`        | `true`             | Trust `X-Forwarded-*` headers from Railway, nginx or Caddy.                                              |
-| `LOG_LEVEL`          | `info`             | Pino log level.                                                                                          |
-| `MAX_SOCKETS_PER_IP` | `80`               | Simultaneous game connections from one IP address. It is generous, because a classroom can share one IP. |
+| Variable             | Default            | Purpose                                                                                                                          |
+| -------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`       | –                  | Postgres connection string. If it isn't set, embedded PGlite is used.                                                            |
+| `DATABASE_SSL`       | `false`            | Set to `true` for hosted Postgres that requires TLS, such as Supabase.                                                           |
+| `DATA_DIR`           | `.data/pglite`     | Where PGlite keeps its files.                                                                                                    |
+| `PORT` / `HOST`      | `8787` / `0.0.0.0` | Where the server listens.                                                                                                        |
+| `TRUST_PROXY`        | `true`             | Trust `X-Forwarded-*` headers from Railway, nginx or Caddy.                                                                      |
+| `LOG_LEVEL`          | `info`             | Pino log level.                                                                                                                  |
+| `MAX_SOCKETS_PER_IP` | `80`               | Simultaneous game connections from one IP address. It is generous, because a classroom can share one IP.                         |
+| `MIN_MS_PER_PIECE`   | `300`              | Completed games that are faster than this per country are saved but not ranked, because no person places countries that quickly. |
 
 ## Map data
 

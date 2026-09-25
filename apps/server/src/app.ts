@@ -38,7 +38,7 @@ export async function buildApp(config: ServerConfig): Promise<App> {
   fastify.log.info(`database: ${db.kind}${db.kind === 'pglite' ? ` (${config.dataDir})` : ''}`);
 
   const players = new PlayerDirectory(db);
-  const results = new ResultsStore(db);
+  const results = new ResultsStore(db, config.minMsPerPiece);
   const puzzles = new PuzzleLibrary(config.puzzleDir).loadAll();
   const now = () => Date.now();
   const rooms = new RoomManager({ puzzles, results, log: fastify.log, now });

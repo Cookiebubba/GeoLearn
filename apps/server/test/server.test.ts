@@ -9,7 +9,8 @@ let app: App;
 let base: string;
 
 beforeAll(async () => {
-  app = await buildApp(loadConfig({ dataDir: ':memory:', databaseUrl: undefined, logLevel: 'silent', webDist: undefined }));
+  // Test games are played by code at machine speed, so rank them anyway.
+  app = await buildApp(loadConfig({ dataDir: ':memory:', databaseUrl: undefined, logLevel: 'silent', webDist: undefined, minMsPerPiece: 0 }));
   await app.fastify.listen({ port: 0, host: '127.0.0.1' });
   const addr = app.fastify.server.address() as AddressInfo;
   base = `127.0.0.1:${addr.port}`;
