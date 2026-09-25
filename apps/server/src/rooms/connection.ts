@@ -19,7 +19,7 @@ const settingsSchema = z
   })
   .refine((s) => validModes(s.partySize).includes(s.mode), 'mode not available for this party size');
 
-const identity = { name: z.string().max(64), token: z.string().min(16).max(128) };
+const identity = { name: z.string().max(64), token: z.string().min(16).max(128), aspect: z.number().finite().min(0.2).max(5).optional() };
 
 const clientMsg = z.discriminatedUnion('t', [
   z.object({ t: z.literal('create'), ...identity, settings: settingsSchema }),
@@ -114,7 +114,7 @@ export function handleConnection(socket: WebSocket, deps: ConnectionDeps) {
         const settings: RoomSettings = { ...(msg.settings as RoomSettings) };
         if (settings.partySize === 1) settings.isPublic = false;
         const room = deps.rooms.create(settings);
-        const slot = room.addPlayer(who.name, who.dbId, socket);
+        const slot = room.addPlayer(who.name, who.dbId, socket, msg.aspect);
         seat = { room, playerId: slot.info.id };
         return;
       }
@@ -129,10 +129,10 @@ export function handleConnection(socket: WebSocket, deps: ConnectionDeps) {
         if (seat && seat.room !== room) seat.room.leave(seat.playerId);
         const existing = room.findSlotForReconnect(msg.session, who.dbId);
         if (existing) {
-          room.reattach(existing, socket, who.name);
+          room.reattach(existing, socket, who.name, msg.aspect);
           seat = { room, playerId: existing.info.id };
         } else {
-          const slot = room.addPlayer(who.name, who.dbId, socket);
+          const slot = room.addPlayer(who.name, who.dbId, socket, msg.aspect);
           seat = { room, playerId: slot.info.id };
         }
         return;

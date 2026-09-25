@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import Fastify, { type FastifyInstance } from 'fastify';
+import fastifyCompress from '@fastify/compress';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import { z } from 'zod';
@@ -41,6 +42,8 @@ export async function buildApp(config: ServerConfig): Promise<App> {
   const now = () => Date.now();
   const rooms = new RoomManager({ puzzles, results, log: fastify.log, now });
 
+  // Dynamic responses are compressed on the fly; big static files ship pre-compressed.
+  await fastify.register(fastifyCompress, { global: true, threshold: 1024, encodings: ['br', 'gzip'], brotliOptions: { params: { 1: 5 } } });
   await fastify.register(fastifyWebsocket, { options: { maxPayload: 16 * 1024 } });
 
   fastify.get('/ws', { websocket: true }, (socket) => {
@@ -104,6 +107,7 @@ export async function buildApp(config: ServerConfig): Promise<App> {
     decorateReply: false,
     maxAge: '7d',
     immutable: false,
+    preCompressed: true,
   });
 
   if (config.webDist && existsSync(config.webDist)) {
@@ -111,6 +115,7 @@ export async function buildApp(config: ServerConfig): Promise<App> {
       root: config.webDist,
       prefix: '/',
       wildcard: false,
+      preCompressed: true,
       setHeaders(reply, path) {
         if (/[\\/]assets[\\/]/.test(path)) reply.header('cache-control', 'public, max-age=31536000, immutable');
       },

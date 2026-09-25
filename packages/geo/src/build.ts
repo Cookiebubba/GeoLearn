@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { geoStream, type GeoProjection } from 'd3-geo';
 import { topology } from 'topojson-server';
 import { presimplify, simplify } from 'topojson-simplify';
-import { feature, neighbors } from 'topojson-client';
+import { feature, merge, neighbors } from 'topojson-client';
 import polylabel from 'polylabel';
 import { COUNTRY_BY_ID } from '@geolearn/shared/geo/countries';
 import {
@@ -236,6 +236,8 @@ interface BuiltPuzzle {
     capital: [number, number] | null;
   }[];
   adjacency: [string, string][];
+  /** Union outline for menu thumbnails (very coarse, no internal borders). */
+  silhouette: Ring[][];
 }
 
 function buildPuzzle(cfg: PuzzleGeoConfig, entities: Map<string, Entity>): BuiltPuzzle {
@@ -285,6 +287,14 @@ function buildPuzzle(cfg: PuzzleGeoConfig, entities: Map<string, Entity>): Built
 
   const topo = topology({ countries: fc }, 1e6);
   const pre = presimplify(topo as never);
+
+  // Coarse union outline for thumbnails.
+  const thumb = simplify(pre, 7) as unknown as { objects: { countries: { geometries: unknown[] } } };
+  const merged = merge(thumb as never, thumb.objects.countries.geometries as never) as GeoJSON.MultiPolygon;
+  const silhouette = merged.coordinates
+    .map((poly) => poly.map((r) => openRing(r)))
+    .filter((poly) => poly[0].length >= 3 && Math.abs(signedArea(poly[0])) >= 40)
+    .map((poly) => poly.filter((r, k) => k === 0 || Math.abs(signedArea(r)) >= 120));
 
   const lodFeatures = cfg.lodWeights.map((w) => {
     const simp = simplify(pre, w);
@@ -355,7 +365,7 @@ function buildPuzzle(cfg: PuzzleGeoConfig, entities: Map<string, Entity>): Built
   }
 
   console.log(`  board ${BOARD_W} × ${height.toFixed(1)}, ${pieces.length} pieces, ${adjacency.length} adjacencies`);
-  return { cfg, board: { width: BOARD_W, height: Math.round(height * 100) / 100 }, pieces, adjacency };
+  return { cfg, board: { width: BOARD_W, height: Math.round(height * 100) / 100 }, pieces, adjacency, silhouette };
 }
 
 /** DSatur graph colouring, balancing slot usage. */
@@ -409,8 +419,10 @@ function toPieceFile(p: BuiltPuzzle['pieces'][number], colourSlot: number): Piec
   const finest = p.lods[p.lods.length - 1].polygons;
   const allRings = finest.flat();
   const box = allRings.map(ringBBox).reduce((a, b) => unionBBox(a, b));
-  const ax = (box[0] + box[2]) / 2;
-  const ay = (box[1] + box[3]) / 2;
+  // Anchor on the same 0.01 grid as the encoded outlines, so neighbours' shared
+  // borders reconstruct to identical coordinates (no hairline gaps on the board).
+  const ax = round((box[0] + box[2]) / 2, 2);
+  const ay = round((box[1] + box[3]) / 2, 2);
 
   let area = 0;
   for (const poly of finest) {
@@ -436,7 +448,7 @@ function toPieceFile(p: BuiltPuzzle['pieces'][number], colourSlot: number): Piec
 
   return {
     id: p.id,
-    target: [round(ax, 3), round(ay, 3)],
+    target: [ax, ay],
     bbox: [round(box[0] - ax), round(box[1] - ay), round(box[2] - ax), round(box[3] - ay)],
     area: round(area, 4),
     label: [round(pl[0] - ax), round(pl[1] - ay), round(pl.distance, 3)],
@@ -465,16 +477,9 @@ function splitDetail(file: PuzzleDataFile): { base: PuzzleDataFile; detail: Puzz
 function silhouettePath(p: BuiltPuzzle): { d: string; h: number } {
   const k = 100 / p.board.width;
   const parts: string[] = [];
-  for (const pc of p.pieces) {
-    for (const poly of pc.lods[0].polygons) {
-      for (const [ri, ring] of poly.entries()) {
-        const a = Math.abs(signedArea(ring));
-        if (a < (ri === 0 ? 1.2 : 4)) continue;
-        // Light decimation for tiny thumbnails.
-        const step = ring.length > 60 ? 2 : 1;
-        const pts = ring.filter((_, i) => i % step === 0);
-        parts.push('M' + pts.map(([x, y]) => `${round(x * k, 1)} ${round(y * k, 1)}`).join('L') + 'Z');
-      }
+  for (const poly of p.silhouette) {
+    for (const ring of poly) {
+      parts.push('M' + ring.map(([x, y]) => `${round(x * k, 1)} ${round(y * k, 1)}`).join('L') + 'Z');
     }
   }
   return { d: parts.join(''), h: round(p.board.height * k, 1) };

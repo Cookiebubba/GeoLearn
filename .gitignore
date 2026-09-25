@@ -13,3 +13,4 @@ packages/geo/cache/
 packages/geo/previews/
 apps/web/public/flags/
 *.tsbuildinfo
+.shot*.mjs

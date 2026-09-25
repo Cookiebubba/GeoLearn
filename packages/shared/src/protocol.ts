@@ -10,8 +10,8 @@ export const PROTOCOL_VERSION = 1;
 
 /** Messages the browser sends over the WebSocket. */
 export type ClientMsg =
-  | { t: 'create'; name: string; token: string; settings: RoomSettings }
-  | { t: 'join'; name: string; token: string; code: string; session?: string }
+  | { t: 'create'; name: string; token: string; settings: RoomSettings; aspect?: number }
+  | { t: 'join'; name: string; token: string; code: string; session?: string; aspect?: number }
   | { t: 'leave' }
   | { t: 'settings'; settings: RoomSettings }
   | { t: 'start' }

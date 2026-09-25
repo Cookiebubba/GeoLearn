@@ -50,11 +50,11 @@ class RectHash {
  * gaps get filled and the whole table fits a phone screen nicely), and keeping
  * the four sides evenly stocked.
  */
-export function scatterPieces(model: PuzzleModel, seed: number): LayoutResult {
+export function scatterPieces(model: PuzzleModel, seed: number, targetAspect?: number): LayoutResult {
   const rand = mulberry32(seed);
   const W = model.board.width;
   const H = model.board.height;
-  const minFoot = W * 0.014;
+  const minFoot = W * 0.026;
   const boardGap = W * 0.03;
   const ringStep = W * 0.008;
   const searchDepth = W * 0.45;
@@ -71,7 +71,9 @@ export function scatterPieces(model: PuzzleModel, seed: number): LayoutResult {
   const sideLen = [W, H, W, H];
   let bounds: Rect = { x0: -boardGap, y0: -boardGap, x1: W + boardGap, y1: H + boardGap };
   const area = (b: Rect) => (b.x1 - b.x0) * (b.y1 - b.y0);
-  const boardAspect = W / H;
+  // Shape the table like the players' screens (portrait phones → pieces above
+  // and below), falling back to the board's own shape.
+  const boardAspect = targetAspect && Number.isFinite(targetAspect) ? Math.min(3, Math.max(0.35, targetAspect)) : W / H;
 
   for (const piece of order) {
     const fw = Math.max(piece.w, minFoot);

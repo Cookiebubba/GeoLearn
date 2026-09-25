@@ -41,8 +41,10 @@ export class GameEngine {
     readonly model: PuzzleModel,
     readonly settings: RoomSettings,
     readonly seed: number,
+    /** Preferred table shape (width / height), usually the players' screens. */
+    aspect?: number,
   ) {
-    const layout = scatterPieces(model, seed);
+    const layout = scatterPieces(model, seed, aspect);
     this.table = layout.table;
     for (const p of model.pieces) {
       const [x, y] = layout.positions.get(p.id)!;

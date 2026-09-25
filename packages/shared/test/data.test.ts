@@ -46,3 +46,32 @@ describe('puzzle data', () => {
     expect(asia.byId.get('SYR')!.area).toBeGreaterThan(asia.byId.get('ISR')!.area * 5);
   });
 });
+
+describe('shared borders', () => {
+  it('neighbouring pieces reconstruct identical border vertices (no hairline gaps)', () => {
+    const model = loadModel('europe');
+    const verts = (id: string, lod: number) => {
+      const p = model.byId.get(id)!;
+      const set = new Set<string>();
+      for (const enc of p.data.rings[lod]) {
+        let x = Math.round(p.tx * 100);
+        let y = Math.round(p.ty * 100);
+        for (let i = 0; i < enc.length; i += 2) {
+          x += enc[i];
+          y += enc[i + 1];
+          set.add(`${x},${y}`);
+        }
+      }
+      return set;
+    };
+    for (const lod of [0, 1]) {
+      for (const [a, b] of [['FRA', 'DEU'], ['POL', 'DEU'], ['ESP', 'PRT'], ['UKR', 'BLR'], ['UKR', 'RUS']]) {
+        const va = verts(a, lod);
+        const vb = verts(b, lod);
+        const shared = [...va].filter((v) => vb.has(v)).length;
+        expect(shared, `${a}/${b} lod ${lod}`).toBeGreaterThan(3);
+      }
+      for (const p of model.pieces) expect(Math.abs(Math.round(p.tx * 100) - p.tx * 100), p.id).toBeLessThan(1e-6);
+    }
+  });
+});

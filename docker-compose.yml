@@ -1,0 +1,32 @@
+# Self-hosting: `docker compose up -d` then open http://localhost:8787
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: geolearn
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-geolearn}
+      POSTGRES_DB: geolearn
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U geolearn -d geolearn']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://geolearn:${POSTGRES_PASSWORD:-geolearn}@db:5432/geolearn
+      PORT: 8787
+      LOG_LEVEL: info
+    ports:
+      - '${APP_PORT:-8787}:8787'
+
+volumes:
+  pgdata:

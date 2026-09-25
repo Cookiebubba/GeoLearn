@@ -39,7 +39,7 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     port: Number(env('PORT', '8787')),
     host: env('HOST', '0.0.0.0')!,
     databaseUrl: env('DATABASE_URL'),
-    dataDir: env('DATA_DIR', join(repo, '.data', 'pglite'))!,
+    dataDir: env('DATA_DIR', bundled ? join(root, '.data', 'pglite') : join(repo, '.data', 'pglite'))!,
     webDist: env('WEB_DIST', bundled ? join(HERE, 'public') : undefined),
     puzzleDir: env('PUZZLE_DIR', bundled ? join(HERE, 'data', 'puzzles') : join(repo, 'packages', 'shared', 'data', 'puzzles'))!,
     migrationsDir: env('MIGRATIONS_DIR', bundled ? join(HERE, 'drizzle') : join(root, 'drizzle'))!,

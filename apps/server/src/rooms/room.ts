@@ -27,6 +27,8 @@ export interface Slot {
   socket: WebSocket | null;
   joinedAt: number;
   disconnectedAt: number | null;
+  /** The player's screen shape (width / height), used to lay out the table. */
+  aspect: number | null;
 }
 
 interface Participant {
@@ -109,7 +111,7 @@ export class Room {
     }
   }
 
-  addPlayer(name: string, dbId: string | null, socket: WebSocket): Slot {
+  addPlayer(name: string, dbId: string | null, socket: WebSocket, aspect?: number): Slot {
     this.canJoin(dbId);
     const usedColors = new Set([...this.slots.values()].map((s) => s.info.color));
     const color = [0, 1, 2, 3].find((c) => !usedColors.has(c)) ?? 0;
@@ -131,6 +133,7 @@ export class Room {
       socket,
       joinedAt: this.deps.now(),
       disconnectedAt: null,
+      aspect: aspect ?? null,
     };
     this.slots.set(slot.info.id, slot);
     if (this.engine && (this.status === 'playing' || this.status === 'countdown')) {
@@ -143,8 +146,9 @@ export class Room {
     return slot;
   }
 
-  reattach(slot: Slot, socket: WebSocket, name: string) {
+  reattach(slot: Slot, socket: WebSocket, name: string, aspect?: number) {
     const old = slot.socket;
+    if (aspect) slot.aspect = aspect;
     slot.socket = socket;
     slot.disconnectedAt = null;
     slot.info.connected = true;
@@ -262,7 +266,10 @@ export class Room {
     }
     const model = this.deps.puzzles.get(this.settings.puzzleId);
     const seed = randomBytes(4).readUInt32LE(0);
-    this.engine = new GameEngine(model, this.settings, seed);
+    // Lay the table out for everyone's screens: geometric mean of their shapes.
+    const aspects = players.map((p) => p.aspect).filter((a): a is number => !!a && a > 0);
+    const aspect = aspects.length ? Math.exp(aspects.reduce((n, a) => n + Math.log(a), 0) / aspects.length) : undefined;
+    this.engine = new GameEngine(model, this.settings, seed, aspect);
     this.participants = new Map();
     for (const s of players) {
       s.info.stats = emptyStats();
