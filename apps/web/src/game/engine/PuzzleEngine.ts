@@ -88,18 +88,27 @@ export class PuzzleEngine {
   private lastMoveSent = 0;
   private lastCursorSent = 0;
   private orderDirty = true;
+  private staticVersion = 0;
   private placedList: ScenePiece[] = [];
   private looseList: ScenePiece[] = [];
   private heldList: ScenePiece[] = [];
   private settlingList: ScenePiece[] = [];
+  private staticPlaced: ScenePiece[] = [];
+  private staticLoose: ScenePiece[] = [];
+  private pressingList: ScenePiece[] = [];
+  private movingList: ScenePiece[] = [];
   private destroyed = false;
   private insets: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
   private lastZoomReport = 0;
 
+  readonly canvas: HTMLCanvasElement;
+
   constructor(
-    readonly canvas: HTMLCanvasElement,
+    layers: { staticCanvas: HTMLCanvasElement; dynamicCanvas: HTMLCanvasElement },
     opts: EngineOptions,
   ) {
+    const canvas = layers.dynamicCanvas;
+    this.canvas = canvas;
     this.model = opts.model;
     this.you = opts.you;
     this.palette = opts.palette;
@@ -107,7 +116,7 @@ export class PuzzleEngine {
     this.callbacks = opts.callbacks;
     this.sound = opts.sound;
     this.haptics = opts.haptics;
-    this.renderer = new Renderer(canvas);
+    this.renderer = new Renderer(layers.staticCanvas, layers.dynamicCanvas);
     const lodCount = this.model.lodZoom.length;
     this.geoms = this.model.pieces.map((m) => new PieceGeometry(m, lodCount));
     this.renderer.setBoard(this.geoms, this.model.board);
@@ -145,6 +154,7 @@ export class PuzzleEngine {
         float: 0,
         floatV: 0,
         floatTarget: 0,
+        still: true,
       };
       this.pieces.set(m.id, p);
       this.list.push(p);
@@ -187,6 +197,7 @@ export class PuzzleEngine {
   setPalette(p: Palette) {
     this.palette = p;
     for (const piece of this.list) piece.colors = pieceColors(p, piece.model.color, piece.id);
+    this.staticVersion++;
     this.requestFrame();
   }
 
@@ -261,6 +272,9 @@ export class PuzzleEngine {
       p.pending = false;
       p.origin = null;
       p.float = p.floatV = p.floatTarget = 0;
+      p.still = !p.heldBy;
+      p.hover = 0;
+      p.pressDelay = 0;
       this.zCounter = Math.max(this.zCounter, ps.z);
       if (p.placed) this.placedCount++;
     }
@@ -723,6 +737,13 @@ export class PuzzleEngine {
         if (p.press >= 1) p.press = -1;
         animating = true;
       }
+
+      const still =
+        !p.heldBy && !p.snap && p.press < 0 && p.pressDelay <= 0 && p.lift === 0 && p.liftV === 0 && p.hover === 0 && p.vx === 0 && p.vy === 0 && p.rx === p.x && p.ry === p.y;
+      if (still !== p.still) {
+        p.still = still;
+        this.orderDirty = true;
+      }
     }
     return animating;
   }
@@ -730,12 +751,17 @@ export class PuzzleEngine {
   private sortIfNeeded() {
     if (!this.orderDirty) return;
     this.orderDirty = false;
+    this.staticVersion++;
     this.placedList = this.list.filter((p) => p.placed && !p.snap).sort((a, b) => b.model.area - a.model.area);
     this.settlingList = this.list.filter((p) => p.placed && p.snap);
     this.looseList = this.list.filter((p) => !p.placed && !p.heldBy).sort((a, b) => a.z - b.z);
     this.heldList = this.list
       .filter((p) => !p.placed && p.heldBy)
       .sort((a, b) => (a.heldBy === this.you ? 1 : 0) - (b.heldBy === this.you ? 1 : 0) || a.z - b.z);
+    this.staticPlaced = this.placedList.filter((p) => p.still);
+    this.pressingList = this.placedList.filter((p) => !p.still);
+    this.staticLoose = this.looseList.filter((p) => p.still);
+    this.movingList = this.looseList.filter((p) => !p.still);
   }
 
   private draw() {
@@ -744,10 +770,14 @@ export class PuzzleEngine {
       camera: this.camera,
       dpr: this.dpr,
       lod: this.lod,
-      placed: this.placedList,
+      staticPlaced: this.staticPlaced,
+      staticLoose: this.staticLoose,
+      pressing: this.pressingList,
       settling: this.settlingList,
-      loose: this.looseList,
+      moving: this.movingList,
       held: this.heldList,
+      staticVersion: this.staticVersion,
+      cameraMoving: this.forceMoving || this.camera.moving || this.input.gesturing,
       effects: this.effects,
       visibility: this.visibility,
       players: this.players,
@@ -813,6 +843,26 @@ export class PuzzleEngine {
       zoom: this.camera.zoom,
     };
   }
+
+  /** Debug: renders `frames` frames while panning; returns average ms per frame. */
+  benchmark(frames = 60, gesture = true): number {
+    this.forceMoving = gesture;
+    const t0 = performance.now();
+    for (let i = 0; i < frames; i++) {
+      this.camera.panBy(Math.sin(i / 5) * 6, Math.cos(i / 7) * 6);
+      this.draw();
+      this.renderer.flush();
+    }
+    this.forceMoving = false;
+    return (performance.now() - t0) / frames;
+  }
+
+  /** Static-layer renders so far (diagnostics). */
+  get staticRenders() {
+    return this.renderer.staticRenders;
+  }
+
+  private forceMoving = false;
 
   get pieceIds(): string[] {
     return this.list.map((p) => p.id);

@@ -5,22 +5,36 @@ import { clamp, easeOutCubic } from './math';
 import { ShadowCache } from './shadows';
 import type { EnginePlayer, ScenePiece, Visibility } from './types';
 
-export const TABLE_TOP = '#ffffff';
-export const TABLE_BOTTOM = '#f2f2ef';
 const CAVITY = '#e9e9e5';
+const FONT = '"Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif';
 /** Pieces smaller than this on screen (px) get a halo. */
 export const HALO_BELOW = 10;
 export const haloRadius = (px: number) => 4.5 + Math.max(0, HALO_BELOW - px) * 0.3;
-const FONT = '"Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif';
+/** Extra area rendered around the viewport in the static layer (fraction of the viewport). */
+const LAYER_MARGIN = 0.2;
+/** The static layer never needs more than 2× density; held pieces draw at full DPR. */
+const STATIC_MAX_DPR = 2;
 
 export interface RenderInput {
   camera: Camera;
   dpr: number;
   lod: number;
-  placed: ScenePiece[];
+  /** Seated pieces that aren't animating (largest first, so enclaves sit on top). */
+  staticPlaced: ScenePiece[];
+  /** Resting loose pieces (bottom to top). */
+  staticLoose: ScenePiece[];
+  /** Seated pieces playing their little press animation. */
+  pressing: ScenePiece[];
+  /** Pieces gliding home. */
   settling: ScenePiece[];
-  loose: ScenePiece[];
+  /** Loose pieces that are moving / hovered (bottom to top). */
+  moving: ScenePiece[];
+  /** Pieces in someone's hand, mine last. */
   held: ScenePiece[];
+  /** Bumped by the engine whenever the static layer's content changes. */
+  staticVersion: number;
+  /** The camera is mid-gesture/animation: the static layer may be stretched. */
+  cameraMoving: boolean;
   effects: Effects;
   visibility: Visibility;
   players: Map<string, EnginePlayer>;
@@ -31,12 +45,50 @@ export interface RenderInput {
   completeGlow: number;
 }
 
+/** Camera-like mapping between board units and a drawing surface (CSS px). */
+interface View {
+  x: number;
+  y: number;
+  zoom: number;
+  cx: number;
+  cy: number;
+  width: number;
+  height: number;
+}
+
+const sx = (v: View, wx: number) => (wx - v.x) * v.zoom + v.cx;
+const sy = (v: View, wy: number) => (wy - v.y) * v.zoom + v.cy;
+
+function viewRect(v: View, margin = 0) {
+  return {
+    x0: (-margin - v.cx) / v.zoom + v.x,
+    y0: (-margin - v.cy) / v.zoom + v.y,
+    x1: (v.width + margin - v.cx) / v.zoom + v.x,
+    y1: (v.height + margin - v.cy) / v.zoom + v.y,
+  };
+}
+
 interface BoardShadow {
   canvas: HTMLCanvasElement;
   x0: number;
   y0: number;
   w: number;
   h: number;
+}
+
+interface Layer {
+  /** Camera the layer was rendered with. */
+  x: number;
+  y: number;
+  zoom: number;
+  cx: number;
+  cy: number;
+  /** Margin (CSS px) around the viewport. */
+  mx: number;
+  my: number;
+  key: string;
+  world: { x0: number; y0: number; x1: number; y1: number };
+  transform: string;
 }
 
 class FlagCache {
@@ -60,8 +112,16 @@ class FlagCache {
   }
 }
 
+/**
+ * Two canvases:
+ * - the static layer (board, seated and resting pieces) is rendered rarely and
+ *   moved with a GPU-composited CSS transform while you pan and pinch;
+ * - the dynamic layer draws only what moves (held pieces, effects, cursors).
+ */
 export class Renderer {
-  readonly ctx: CanvasRenderingContext2D;
+  private ctx: CanvasRenderingContext2D;
+  private readonly sctx: CanvasRenderingContext2D;
+  private readonly dctx: CanvasRenderingContext2D;
   private unionPaths: (Path2D | undefined)[] = [];
   private geoms: PieceGeometry[] = [];
   private board = { width: 1000, height: 1000 };
@@ -70,15 +130,34 @@ export class Renderer {
   private readonly liftShadows = new ShadowCache();
   private readonly flags: FlagCache;
   private readonly textWidths = new Map<string, number>();
-  private bg: { w: number; h: number; g: CanvasGradient } | null = null;
-  /** Set when an asynchronous resource (flag) arrives and a redraw is needed. */
+  private layer: Layer | null = null;
+  /** Some shadow sprites were stale in the last static render; refresh when idle. */
+  private staleSprites = false;
+  private flagVersion = 0;
+  private dynamicDirty = true;
+  private cssW = 1;
+  private cssH = 1;
+  /** Set when something asynchronous (a flag, a shadow sprite) needs another frame. */
   wantsFrame = false;
+  /** Number of static-layer renders (for tests / diagnostics). */
+  staticRenders = 0;
 
-  constructor(readonly canvas: HTMLCanvasElement) {
-    const ctx = canvas.getContext('2d', { alpha: false });
-    if (!ctx) throw new Error('Canvas 2D is not available');
-    this.ctx = ctx;
-    this.flags = new FlagCache(() => (this.wantsFrame = true));
+  constructor(
+    readonly staticCanvas: HTMLCanvasElement,
+    readonly dynamicCanvas: HTMLCanvasElement,
+  ) {
+    const s = staticCanvas.getContext('2d');
+    const d = dynamicCanvas.getContext('2d');
+    if (!s || !d) throw new Error('Canvas 2D is not available');
+    this.sctx = s;
+    this.dctx = d;
+    this.ctx = d;
+    this.flags = new FlagCache(() => {
+      this.flagVersion++;
+      this.wantsFrame = true;
+    });
+    staticCanvas.style.transformOrigin = '0 0';
+    staticCanvas.style.willChange = 'transform';
   }
 
   setBoard(geoms: PieceGeometry[], board: { width: number; height: number }) {
@@ -86,11 +165,18 @@ export class Renderer {
     this.board = board;
     this.unionPaths = [];
     this.shadow = null;
+    this.layer = null;
   }
 
   /** Invalidate cached outlines after the detailed LOD arrives. */
   refreshLod(lod: number) {
     this.unionPaths[lod] = undefined;
+    this.layer = null;
+  }
+
+  invalidate() {
+    this.layer = null;
+    this.dynamicDirty = true;
   }
 
   unionPath(lod: number): Path2D {
@@ -155,6 +241,13 @@ export class Renderer {
     o.restore();
     mask.width = mask.height = 0;
     this.shadow = { canvas: out, x0: -margin, y0: -margin, w: W + margin * 2, h: H + margin * 2 };
+    this.layer = null;
+  }
+
+  /** Forces pending canvas work to rasterize (benchmarks only). */
+  flush() {
+    this.sctx.getImageData(0, 0, 1, 1);
+    this.dctx.getImageData(0, 0, 1, 1);
   }
 
   get hasBoardShadow() {
@@ -164,68 +257,119 @@ export class Renderer {
   clearCaches() {
     this.restShadows.clear();
     this.liftShadows.clear();
+    this.staticCanvas.width = this.staticCanvas.height = 0;
+    this.dynamicCanvas.width = this.dynamicCanvas.height = 0;
   }
 
   resize(cssW: number, cssH: number, dpr: number) {
+    this.cssW = cssW;
+    this.cssH = cssH;
     const w = Math.max(1, Math.round(cssW * dpr));
     const h = Math.max(1, Math.round(cssH * dpr));
-    if (this.canvas.width !== w || this.canvas.height !== h) {
-      this.canvas.width = w;
-      this.canvas.height = h;
-      this.bg = null;
+    if (this.dynamicCanvas.width !== w || this.dynamicCanvas.height !== h) {
+      this.dynamicCanvas.width = w;
+      this.dynamicCanvas.height = h;
     }
+    this.layer = null;
+    this.dynamicDirty = true;
   }
 
   // ── Frame ──────────────────────────────────────────────────────────────
 
   render(s: RenderInput) {
-    const { ctx } = this;
-    const cam = s.camera;
-    const dpr = s.dpr;
     this.restShadows.beginFrame();
     this.liftShadows.beginFrame();
-    const budget = { n: 24 };
-    const liftBudget = { n: 4 };
+    const cam = s.camera;
+    const main: View = { x: cam.x, y: cam.y, zoom: cam.zoom, cx: cam.cx, cy: cam.cy, width: cam.width, height: cam.height };
 
-    // Table.
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Static layer: re-render only when needed, otherwise just move it.
+    const key = [s.lod, s.staticVersion, s.dpr, cam.width, cam.height, cam.cx, cam.cy, visKey(s.visibility), Math.round(s.completeGlow * 20), this.shadow ? 1 : 0, this.flagVersion].join('|');
+    if (this.needsStatic(s, main, key)) this.renderStatic(s, main, key);
+    this.positionLayer(main);
+
+    // Dynamic layer.
+    const hasDynamic =
+      s.pressing.length + s.settling.length + s.moving.length + s.held.length > 0 || s.effects.active || s.cursors.size > 0;
+    if (!hasDynamic && !this.dynamicDirty) return;
+    const ctx = this.dctx;
+    this.ctx = ctx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, this.dynamicCanvas.width, this.dynamicCanvas.height);
+    this.dynamicDirty = hasDynamic;
+    if (!hasDynamic) return;
+
+    const view = viewRect(main, 40);
+    const budget = { n: 12 };
+    const liftBudget = { n: 4 };
+    const labelsOn = s.visibility.names || s.visibility.capitals || s.visibility.flags;
+    for (const p of s.pressing) {
+      if (this.inView(p, view, 1)) this.drawSeated(p, main, s.lod, s.dpr);
+    }
+    if (s.effects.sweep >= 0) this.drawSweep(main, s.dpr, this.unionPath(s.lod), s.effects.sweep);
+    if (labelsOn) for (const p of s.pressing) if (this.inView(p, view, 1)) this.drawLabels(p, main, 1, s.visibility, false, s.dpr);
+    for (const p of s.moving) this.drawLoose(p, s, main, view, budget, liftBudget, labelsOn);
+    for (const p of s.settling) this.drawLoose(p, s, main, view, budget, liftBudget, labelsOn);
+    for (const p of s.held) this.drawLoose(p, s, main, view, budget, liftBudget, labelsOn);
+    this.drawEffects(s, main, s.dpr);
+    this.drawCursors(s, main, s.dpr);
+    if (budget.n <= 0 || liftBudget.n <= 0) this.wantsFrame = true;
+  }
+
+  private needsStatic(s: RenderInput, v: View, key: string): boolean {
+    const L = this.layer;
+    if (!L || L.key !== key) return true;
+    const k = v.zoom / L.zoom;
+    // Stretched too far to look right, or the view has left the rendered area.
+    if (k > 1.9 || k < 0.55) return true;
+    const r = viewRect(v, 0);
+    if (r.x0 < L.world.x0 || r.y0 < L.world.y0 || r.x1 > L.world.x1 || r.y1 > L.world.y1) return true;
+    // Once things settle, re-render crisp at the exact camera.
+    if (!s.cameraMoving && (Math.abs(k - 1) > 1e-4 || Math.abs(sx(v, L.x) - L.cx) > 0.01 || Math.abs(sy(v, L.y) - L.cy) > 0.01)) return true;
+    if (!s.cameraMoving && this.staleSprites) return true;
+    return false;
+  }
+
+  private renderStatic(s: RenderInput, v: View, key: string) {
+    this.staticRenders++;
+    const dpr = Math.min(s.dpr, STATIC_MAX_DPR);
+    const mx = Math.round(this.cssW * LAYER_MARGIN);
+    const my = Math.round(this.cssH * LAYER_MARGIN);
+    const lw = this.cssW + mx * 2;
+    const lh = this.cssH + my * 2;
+    const canvas = this.staticCanvas;
+    const pw = Math.max(1, Math.round(lw * dpr));
+    const ph = Math.max(1, Math.round(lh * dpr));
+    if (canvas.width !== pw || canvas.height !== ph) {
+      canvas.width = pw;
+      canvas.height = ph;
+      canvas.style.width = `${lw}px`;
+      canvas.style.height = `${lh}px`;
+    }
+    const lv: View = { x: v.x, y: v.y, zoom: v.zoom, cx: v.cx + mx, cy: v.cy + my, width: lw, height: lh };
+    const ctx = this.sctx;
+    this.ctx = ctx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
-    if (!this.bg || this.bg.w !== cam.width || this.bg.h !== cam.height) {
-      const g = ctx.createLinearGradient(0, 0, cam.width * 0.6, cam.height);
-      g.addColorStop(0, TABLE_TOP);
-      g.addColorStop(1, TABLE_BOTTOM);
-      this.bg = { w: cam.width, h: cam.height, g };
-    }
-    ctx.fillStyle = this.bg.g;
-    ctx.fillRect(0, 0, cam.width, cam.height);
+    ctx.clearRect(0, 0, pw, ph);
 
-    const view = cam.viewRect(40);
+    const view = viewRect(lv, 40);
     const union = this.unionPath(s.lod);
+    // Rebuild at most this many shadow sprites per render; stale ones are reused
+    // (slightly off in blur) and refreshed over the next idle frames.
+    const budget = { n: 36 };
 
     // The recess.
-    this.setWorld(cam, dpr);
+    this.setWorld(lv, dpr);
     ctx.fillStyle = CAVITY;
     ctx.fill(union, 'nonzero');
 
-    // Pieces sitting in their home.
-    for (const p of s.placed) {
-      if (!this.inView(p, view, 1)) continue;
-      const scale = p.press >= 0 ? 1 - 0.03 * Math.sin(Math.PI * p.press) : 1;
-      this.setPiece(cam, dpr, p.rx, p.ry, scale);
-      const path = p.geom.path(s.lod);
-      ctx.fillStyle = p.colors.fill;
-      ctx.fill(path, 'nonzero');
-      // Same-colour hairline hides anti-aliasing seams between neighbours.
-      ctx.strokeStyle = p.colors.fill;
-      ctx.lineWidth = 0.9 / (cam.zoom * scale);
-      ctx.lineJoin = 'round';
-      ctx.stroke(path);
-    }
+    for (const p of s.staticPlaced) if (this.inView(p, view, 1)) this.drawSeated(p, lv, s.lod, dpr);
 
     // Inner shadow over the seated pieces, so they read as inlaid.
     if (this.shadow) {
-      this.setWorld(cam, dpr);
+      this.setWorld(lv, dpr);
       ctx.save();
       ctx.clip(union, 'nonzero');
       ctx.globalAlpha = 1 - 0.45 * s.completeGlow;
@@ -234,46 +378,110 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
 
-    if (s.effects.sweep >= 0) this.drawSweep(cam, dpr, union, s.effects.sweep);
-
     const labelsOn = s.visibility.names || s.visibility.capitals || s.visibility.flags;
-    if (labelsOn) for (const p of s.placed) if (this.inView(p, view, 1)) this.drawLabels(p, cam, 1, s.visibility, false, dpr);
+    if (labelsOn) for (const p of s.staticPlaced) if (this.inView(p, view, 1)) this.drawLabels(p, lv, 1, s.visibility, false, dpr);
 
-    // Loose pieces on the table (and pieces gliding home).
-    for (const p of s.loose) this.drawLoose(p, s, view, budget, liftBudget, labelsOn);
-    for (const p of s.settling) this.drawLoose(p, s, view, budget, liftBudget, labelsOn);
-    // Pieces in someone's hand, mine last.
-    for (const p of s.held) this.drawLoose(p, s, view, budget, liftBudget, labelsOn);
+    // Resting pieces: shadows first, then the pieces.
+    const visible = s.staticLoose.filter((p) => this.inView(p, view, 1));
+    for (const p of visible) this.drawRestShadow(p, lv, s.lod, dpr, budget);
+    for (const p of visible) {
+      this.setPiece(lv, dpr, p.rx, p.ry, 1);
+      ctx.fillStyle = p.colors.fill;
+      ctx.fill(p.geom.path(s.lod), 'nonzero');
+    }
+    this.drawHalos(visible, lv, dpr);
+    if (labelsOn) for (const p of visible) this.drawLabels(p, lv, 1, s.visibility, false, dpr);
+    this.staleSprites = budget.n <= 0;
+    if (this.staleSprites) this.wantsFrame = true;
 
-    this.drawEffects(s, cam, dpr);
-    this.drawCursors(s, cam, dpr);
-    if (budget.n <= 0 || liftBudget.n <= 0) this.wantsFrame = true;
+    this.layer = { x: v.x, y: v.y, zoom: v.zoom, cx: v.cx, cy: v.cy, mx, my, key, world: viewRect(lv, 0), transform: '' };
   }
 
-  private drawLoose(p: ScenePiece, s: RenderInput, view: { x0: number; y0: number; x1: number; y1: number }, budget: { n: number }, liftBudget: { n: number }, labelsOn: boolean) {
-    const { ctx } = this;
-    const cam = s.camera;
+  /** Moves/stretches the static layer to match the current camera (GPU composited). */
+  private positionLayer(v: View) {
+    const L = this.layer;
+    if (!L) return;
+    const k = v.zoom / L.zoom;
+    const tx = (-L.mx - L.cx) * k + (L.x - v.x) * v.zoom + v.cx;
+    const ty = (-L.my - L.cy) * k + (L.y - v.y) * v.zoom + v.cy;
+    const t = `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${k.toFixed(5)})`;
+    if (t !== L.transform) {
+      L.transform = t;
+      this.staticCanvas.style.transform = t;
+    }
+  }
+
+  // ── Pieces ─────────────────────────────────────────────────────────────
+
+  private drawSeated(p: ScenePiece, v: View, lod: number, dpr: number) {
+    const ctx = this.ctx;
+    const scale = p.press >= 0 ? 1 - 0.03 * Math.sin(Math.PI * p.press) : 1;
+    this.setPiece(v, dpr, p.rx, p.ry, scale);
+    const path = p.geom.path(lod);
+    ctx.fillStyle = p.colors.fill;
+    ctx.fill(path, 'nonzero');
+    // Same-colour hairline hides anti-aliasing seams between neighbours.
+    ctx.strokeStyle = p.colors.fill;
+    ctx.lineWidth = 0.9 / (v.zoom * scale);
+    ctx.lineJoin = 'round';
+    ctx.stroke(path);
+  }
+
+  private drawRestShadow(p: ScenePiece, v: View, lod: number, dpr: number, budget: { n: number }) {
+    const sp = this.restShadows.get(p.geom, lod, v.zoom, dpr, 2.4, budget);
+    if (sp) this.stamp(sp, sx(v, p.rx) + 0.9, sy(v, p.ry) + 1.6, v.zoom, 1, 0.26, dpr);
+  }
+
+  /** Soft rings that make tiny countries visible and easy to grab. Batched. */
+  private drawHalos(pieces: ScenePiece[], v: View, dpr: number) {
+    const ctx = this.ctx;
+    const tiny = pieces.filter((p) => p.model.size * v.zoom < HALO_BELOW);
+    if (!tiny.length) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const rings = new Path2D();
+    for (const p of tiny) {
+      const px = p.model.size * v.zoom;
+      const x = sx(v, p.rx + p.model.label[0]);
+      const y = sy(v, p.ry + p.model.label[1]);
+      const r = haloRadius(px);
+      rings.moveTo(x + r, y);
+      rings.arc(x, y, r, 0, Math.PI * 2);
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fill(rings);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(60,62,58,0.28)';
+    ctx.stroke(rings);
+    for (const p of tiny) {
+      const px = p.model.size * v.zoom;
+      ctx.beginPath();
+      ctx.arc(sx(v, p.rx + p.model.label[0]), sy(v, p.ry + p.model.label[1]), Math.max(2.2, px / 2), 0, Math.PI * 2);
+      ctx.fillStyle = p.colors.fill;
+      ctx.fill();
+    }
+  }
+
+  private drawLoose(p: ScenePiece, s: RenderInput, v: View, view: { x0: number; y0: number; x1: number; y1: number }, budget: { n: number }, liftBudget: { n: number }, labelsOn: boolean) {
+    const ctx = this.ctx;
     const dpr = s.dpr;
     const lift = clamp(p.lift, 0, 1.2);
     const scale = 1 + 0.075 * lift + 0.018 * p.hover;
     if (!this.inView(p, view, scale)) return;
     const path = p.geom.path(s.lod);
-    const sx = cam.toScreenX(p.rx);
-    const sy = cam.toScreenY(p.ry);
+    const ax = sx(v, p.rx);
+    const ay = sy(v, p.ry);
 
-    // Resting contact shadow.
     const restAlpha = 0.26 * (1 - Math.min(1, lift));
     if (restAlpha > 0.01) {
-      const sp = this.restShadows.get(p.geom, s.lod, cam.zoom * scale, dpr, 2.4, budget);
-      if (sp) this.stamp(sp, sx + 0.9, sy + 1.6, cam.zoom, scale, restAlpha, dpr);
+      const sp = this.restShadows.get(p.geom, s.lod, v.zoom * scale, dpr, 2.4, budget);
+      if (sp) this.stamp(sp, ax + 0.9, ay + 1.6, v.zoom, scale, restAlpha, dpr);
     }
-    // Lifted shadow: larger, softer, offset away from the light.
     if (lift > 0.02) {
-      const sp = this.liftShadows.get(p.geom, s.lod, cam.zoom * scale, dpr, 14, liftBudget);
-      if (sp) this.stamp(sp, sx + 2 + 6 * lift, sy + 4 + 9 * lift, cam.zoom, scale, 0.22 * Math.min(1, lift), dpr);
+      const sp = this.liftShadows.get(p.geom, s.lod, v.zoom * scale, dpr, 14, liftBudget);
+      if (sp) this.stamp(sp, ax + 2 + 6 * lift, ay + 4 + 9 * lift, v.zoom, scale, 0.22 * Math.min(1, lift), dpr);
     }
 
-    this.setPiece(cam, dpr, p.rx, p.ry, scale);
+    this.setPiece(v, dpr, p.rx, p.ry, scale);
     ctx.fillStyle = lift > 0.5 ? p.colors.lifted : p.colors.fill;
     ctx.fill(path, 'nonzero');
 
@@ -282,73 +490,72 @@ export class Renderer {
       const who = s.players.get(p.heldBy);
       if (who) {
         ctx.strokeStyle = who.color;
-        ctx.lineWidth = 1.6 / (cam.zoom * scale);
+        ctx.lineWidth = 1.6 / (v.zoom * scale);
         ctx.lineJoin = 'round';
         ctx.stroke(path);
       }
     }
 
-    // Tiny countries get a soft halo so they can be seen and grabbed.
-    const px = p.model.size * cam.zoom * scale;
+    const px = p.model.size * v.zoom * scale;
     if (px < HALO_BELOW) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const lx = cam.toScreenX(p.rx + p.model.label[0] * scale);
-      const ly = cam.toScreenY(p.ry + p.model.label[1] * scale);
+      const lx = sx(v, p.rx + p.model.label[0] * scale);
+      const ly = sy(v, p.ry + p.model.label[1] * scale);
       const r = haloRadius(px) * (1 + 0.15 * lift);
       ctx.beginPath();
       ctx.arc(lx, ly, r, 0, Math.PI * 2);
-      ctx.fillStyle = withAlpha(p.colors.rgb, 0.16 + 0.18 * Math.min(1, lift));
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
       ctx.fill();
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = withAlpha(p.colors.rgb, 0.6);
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = p.heldBy && p.heldBy !== s.you ? (s.players.get(p.heldBy)?.color ?? 'rgba(60,62,58,0.3)') : 'rgba(60,62,58,0.3)';
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(lx, ly, Math.max(1.8, px / 2), 0, Math.PI * 2);
+      ctx.arc(lx, ly, Math.max(2.2, px / 2), 0, Math.PI * 2);
       ctx.fillStyle = p.colors.fill;
       ctx.fill();
     }
 
-    if (labelsOn) this.drawLabels(p, cam, scale, s.visibility, lift > 0.5, dpr);
+    if (labelsOn) this.drawLabels(p, v, scale, s.visibility, lift > 0.5, dpr);
 
     if (p.heldBy && p.heldBy !== s.you) {
       const who = s.players.get(p.heldBy);
       if (who) {
         const b = p.model.bbox;
-        this.nameTag(who.name, who.color, cam.toScreenX(p.rx + b[0] * scale), cam.toScreenY(p.ry + b[1] * scale) - 6, dpr);
+        this.nameTag(who.name, who.color, sx(v, p.rx + b[0] * scale), sy(v, p.ry + b[1] * scale) - 6, dpr);
       }
     }
   }
 
-  /** Draws a shadow sprite under a piece anchored at screen (sx, sy). */
-  private stamp(sp: { canvas: HTMLCanvasElement; scale: number; ox: number; oy: number }, sx: number, sy: number, zoom: number, scale: number, alpha: number, dpr: number) {
-    const { ctx } = this;
+  /** Draws a shadow sprite under a piece anchored at screen (ax, ay). */
+  private stamp(sp: { canvas: HTMLCanvasElement; scale: number; ox: number; oy: number }, ax: number, ay: number, zoom: number, scale: number, alpha: number, dpr: number) {
+    const ctx = this.ctx;
     if (!sp.canvas.width) return;
     const k = zoom * scale;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.globalAlpha = alpha;
-    ctx.drawImage(sp.canvas, sx + sp.ox * k, sy + sp.oy * k, (sp.canvas.width / sp.scale) * k, (sp.canvas.height / sp.scale) * k);
+    ctx.drawImage(sp.canvas, ax + sp.ox * k, ay + sp.oy * k, (sp.canvas.width / sp.scale) * k, (sp.canvas.height / sp.scale) * k);
     ctx.globalAlpha = 1;
   }
 
-  private setWorld(cam: Camera, dpr: number) {
-    const k = dpr * cam.zoom;
-    this.ctx.setTransform(k, 0, 0, k, dpr * (cam.cx - cam.x * cam.zoom), dpr * (cam.cy - cam.y * cam.zoom));
+  private setWorld(v: View, dpr: number) {
+    const k = dpr * v.zoom;
+    this.ctx.setTransform(k, 0, 0, k, dpr * (v.cx - v.x * v.zoom), dpr * (v.cy - v.y * v.zoom));
   }
 
-  private setPiece(cam: Camera, dpr: number, x: number, y: number, scale: number) {
-    const k = dpr * cam.zoom * scale;
-    this.ctx.setTransform(k, 0, 0, k, dpr * (cam.cx + (x - cam.x) * cam.zoom), dpr * (cam.cy + (y - cam.y) * cam.zoom));
+  private setPiece(v: View, dpr: number, x: number, y: number, scale: number) {
+    const k = dpr * v.zoom * scale;
+    this.ctx.setTransform(k, 0, 0, k, dpr * (v.cx + (x - v.x) * v.zoom), dpr * (v.cy + (y - v.y) * v.zoom));
   }
 
-  private inView(p: ScenePiece, v: { x0: number; y0: number; x1: number; y1: number }, scale: number) {
+  private inView(p: ScenePiece, r: { x0: number; y0: number; x1: number; y1: number }, scale: number) {
     const b = p.model.bbox;
-    return p.rx + b[2] * scale >= v.x0 && p.rx + b[0] * scale <= v.x1 && p.ry + b[3] * scale >= v.y0 && p.ry + b[1] * scale <= v.y1;
+    return p.rx + b[2] * scale >= r.x0 && p.rx + b[0] * scale <= r.x1 && p.ry + b[3] * scale >= r.y0 && p.ry + b[1] * scale <= r.y1;
   }
 
-  private drawSweep(cam: Camera, dpr: number, union: Path2D, t: number) {
-    const { ctx } = this;
+  private drawSweep(v: View, dpr: number, union: Path2D, t: number) {
+    const ctx = this.ctx;
     const { width: W, height: H } = this.board;
-    this.setWorld(cam, dpr);
+    this.setWorld(v, dpr);
     ctx.save();
     ctx.clip(union, 'nonzero');
     const e = easeOutCubic(t);
@@ -393,20 +600,20 @@ export class Renderer {
     return null;
   }
 
-  private drawLabels(p: ScenePiece, cam: Camera, scale: number, vis: Visibility, force: boolean, dpr: number) {
-    const { ctx } = this;
-    const zoom = cam.zoom * scale;
+  private drawLabels(p: ScenePiece, v: View, scale: number, vis: Visibility, force: boolean, dpr: number) {
+    const ctx = this.ctx;
+    const zoom = v.zoom * scale;
     const [lx, ly, lr] = p.model.label;
     const r = Math.max(lr * zoom, 0);
     const screenW = p.model.w * zoom;
     const size = Math.max(screenW, p.model.h * zoom);
-    const sx = cam.toScreenX(p.rx + lx * scale);
-    const sy = cam.toScreenY(p.ry + ly * scale);
+    const px = sx(v, p.rx + lx * scale);
+    const py = sy(v, p.ry + ly * scale);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const capital =
       vis.capitals && p.model.capital && p.info.capital && (size > 30 || force)
-        ? { x: cam.toScreenX(p.rx + p.model.capital[0] * scale), y: cam.toScreenY(p.ry + p.model.capital[1] * scale) }
+        ? { x: sx(v, p.rx + p.model.capital[0] * scale), y: sy(v, p.ry + p.model.capital[1] * scale) }
         : null;
 
     let name: { size: number; lines: string[] } | null = null;
@@ -421,12 +628,12 @@ export class Renderer {
     const gap = name && flagH ? 3 : 0;
     const blockH = nameH + flagH + gap;
     const blockW = Math.max(nameW, flagW);
-    let top = sy - blockH / 2;
+    let top = py - blockH / 2;
 
     // Keep the capital's dot visible: slide the label block off it.
     if (capital && blockH > 0) {
       const pad = 5;
-      const inside = capital.x > sx - blockW / 2 - pad && capital.x < sx + blockW / 2 + pad && capital.y > top - pad && capital.y < top + blockH + pad;
+      const inside = capital.x > px - blockW / 2 - pad && capital.x < px + blockW / 2 + pad && capital.y > top - pad && capital.y < top + blockH + pad;
       if (inside) {
         const below = capital.y + 8;
         const above = capital.y - 8 - blockH;
@@ -442,14 +649,14 @@ export class Renderer {
         ctx.shadowColor = 'rgba(0,0,0,0.18)';
         ctx.shadowBlur = 3;
         ctx.shadowOffsetY = 1;
-        roundRect(ctx, sx - flagW / 2, y, flagW, flagH, Math.min(3, flagH * 0.15));
+        roundRect(ctx, px - flagW / 2, y, flagW, flagH, Math.min(3, flagH * 0.15));
         ctx.fillStyle = '#fff';
         ctx.fill();
         ctx.restore();
         ctx.save();
-        roundRect(ctx, sx - flagW / 2, y, flagW, flagH, Math.min(3, flagH * 0.15));
+        roundRect(ctx, px - flagW / 2, y, flagW, flagH, Math.min(3, flagH * 0.15));
         ctx.clip();
-        ctx.drawImage(img, sx - flagW / 2, y, flagW, flagH);
+        ctx.drawImage(img, px - flagW / 2, y, flagW, flagH);
         ctx.restore();
       }
       y += flagH + gap;
@@ -463,9 +670,9 @@ export class Renderer {
       for (const line of name.lines) {
         ctx.lineWidth = Math.max(2, name.size * 0.22);
         ctx.strokeStyle = p.colors.textHalo;
-        ctx.strokeText(line, sx, y);
+        ctx.strokeText(line, px, y);
         ctx.fillStyle = p.colors.text;
-        ctx.fillText(line, sx, y);
+        ctx.fillText(line, px, y);
         y += name.size * 1.12;
       }
     }
@@ -482,7 +689,7 @@ export class Renderer {
       if (size > 64 || force) {
         const fs = clamp(r * 0.3, 9, 12.5);
         const tw = this.measure(p.info.capital!, fs, 500);
-        const block = { x0: sx - blockW / 2, x1: sx + blockW / 2, y0: top, y1: top + blockH };
+        const block = { x0: px - blockW / 2, x1: px + blockW / 2, y0: top, y1: top + blockH };
         const hits = (x0: number) => blockH > 0 && x0 < block.x1 && x0 + tw > block.x0 && capital.y + fs / 2 > block.y0 && capital.y - fs / 2 < block.y1;
         let tx = capital.x + 6;
         let align: CanvasTextAlign = 'left';
@@ -506,7 +713,7 @@ export class Renderer {
   }
 
   private nameTag(name: string, color: string, x: number, y: number, dpr: number) {
-    const { ctx } = this;
+    const ctx = this.ctx;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.font = `600 11px ${FONT}`;
     const w = this.measure(name, 11, 600) + 14;
@@ -522,16 +729,16 @@ export class Renderer {
 
   // ── Effects & presence ─────────────────────────────────────────────────
 
-  private drawEffects(s: RenderInput, cam: Camera, dpr: number) {
-    const { ctx } = this;
+  private drawEffects(s: RenderInput, v: View, dpr: number) {
+    const ctx = this.ctx;
     const fx = s.effects;
     for (const r of fx.ripples) {
       if (r.delay > 0) continue;
       const e = easeOutCubic(r.t);
-      this.setPiece(cam, dpr, r.piece.rx, r.piece.ry, 1);
+      this.setPiece(v, dpr, r.piece.rx, r.piece.ry, 1);
       ctx.globalAlpha = (1 - e) * 0.7;
       ctx.strokeStyle = r.color;
-      ctx.lineWidth = (1.5 + 18 * e) / cam.zoom;
+      ctx.lineWidth = (1.5 + 18 * e) / v.zoom;
       ctx.lineJoin = 'round';
       ctx.stroke(r.piece.geom.path(s.lod));
     }
@@ -542,7 +749,7 @@ export class Renderer {
       const t = p.life / p.max;
       ctx.globalAlpha = (1 - t) * 0.9;
       ctx.beginPath();
-      ctx.arc(cam.toScreenX(p.x), cam.toScreenY(p.y), p.size * (1 - t * 0.5), 0, Math.PI * 2);
+      ctx.arc(sx(v, p.x), sy(v, p.y), p.size * (1 - t * 0.5), 0, Math.PI * 2);
       ctx.fillStyle = p.color;
       ctx.fill();
     }
@@ -553,9 +760,9 @@ export class Renderer {
       const inT = Math.min(1, t.t / 0.25);
       const outT = Math.max(0, (t.t - (t.dur - 0.5)) / 0.5);
       const alpha = easeOutCubic(inT) * (1 - outT);
-      const x = cam.toScreenX(p.rx + p.model.label[0]);
-      const top = cam.toScreenY(p.ry + p.model.bbox[1]);
-      const y = Math.max(40, Math.min(top, cam.toScreenY(p.ry + p.model.label[1]) - 26)) - 10 - 8 * easeOutCubic(inT) - 6 * outT;
+      const x = clamp(sx(v, p.rx + p.model.label[0]), 80, v.width - 80);
+      const top = sy(v, p.ry + p.model.bbox[1]);
+      const y = Math.max(104, Math.min(top, sy(v, p.ry + p.model.label[1]) - 26)) - 10 - 8 * easeOutCubic(inT) - 6 * outT;
       ctx.font = `650 14px ${FONT}`;
       const tw = this.measure(t.title, 14, 650);
       let sw = 0;
@@ -592,8 +799,8 @@ export class Renderer {
     }
   }
 
-  private drawCursors(s: RenderInput, cam: Camera, dpr: number) {
-    const { ctx } = this;
+  private drawCursors(s: RenderInput, v: View, dpr: number) {
+    const ctx = this.ctx;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const holding = new Set(s.held.map((p) => p.heldBy));
     for (const [id, c] of s.cursors) {
@@ -603,8 +810,8 @@ export class Renderer {
       const who = s.players.get(id);
       if (!who) continue;
       const alpha = age > 3 ? 4 - age : 1;
-      const x = cam.toScreenX(c.x);
-      const y = cam.toScreenY(c.y);
+      const x = sx(v, c.x);
+      const y = sy(v, c.y);
       ctx.globalAlpha = alpha;
       ctx.beginPath();
       ctx.arc(x, y, 6, 0, Math.PI * 2);
@@ -619,8 +826,8 @@ export class Renderer {
   }
 }
 
-function withAlpha(rgb: [number, number, number], a: number) {
-  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a.toFixed(3)})`;
+function visKey(v: Visibility) {
+  return `${+v.names}${+v.capitals}${+v.flags}`;
 }
 
 export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

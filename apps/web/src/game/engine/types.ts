@@ -67,4 +67,6 @@ export interface ScenePiece {
   float: number;
   floatV: number;
   floatTarget: number;
+  /** Rendered in the cached static layer (not animating, not held). */
+  still: boolean;
 }

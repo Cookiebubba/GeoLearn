@@ -87,6 +87,12 @@ export class InputController {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
+  /** Fingers / mouse are currently driving the camera. */
+  get gesturing(): boolean {
+    for (const p of this.ptrs.values()) if (p.role === 'camera' && p.moved) return true;
+    return false;
+  }
+
   private cameraPtrs(): Ptr[] {
     return [...this.ptrs.values()].filter((p) => p.role === 'camera');
   }

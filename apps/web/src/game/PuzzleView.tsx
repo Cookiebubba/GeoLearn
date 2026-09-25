@@ -55,6 +55,7 @@ function ProgressRing({ value }: { value: number }) {
 
 export function PuzzleView({ room, you, onLeave }: { room: RoomSnapshot; you: string; onLeave: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const staticRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<PuzzleEngine | null>(null);
   const [model, setModel] = useState<PuzzleModel | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -85,9 +86,10 @@ export function PuzzleView({ room, you, onLeave }: { room: RoomSnapshot; you: st
   // Engine lifecycle.
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!model || !canvas) return;
+    const staticCanvas = staticRef.current;
+    if (!model || !canvas || !staticCanvas) return;
     const prefs = usePrefs.getState();
-    const engine = new PuzzleEngine(canvas, {
+    const engine = new PuzzleEngine({ staticCanvas, dynamicCanvas: canvas }, {
       model,
       you,
       palette: PALETTE_BY_ID.get(prefs.palette) ?? PALETTES[0],
@@ -233,7 +235,10 @@ export function PuzzleView({ room, you, onLeave }: { room: RoomSnapshot; you: st
 
   return (
     <div className="game">
-      <canvas ref={canvasRef} aria-label={`${room.settings.puzzleId} map puzzle`} />
+      <div className="stage">
+        <canvas ref={staticRef} className="layer-static" aria-hidden="true" />
+        <canvas ref={canvasRef} className="layer-dynamic" aria-label={`${room.settings.puzzleId} map puzzle`} />
+      </div>
 
       <div className="hud-top">
         <div className="hud-group">
