@@ -18,7 +18,17 @@ export interface DbHandle {
  * server…) and otherwise falls back to an embedded PGlite database on disk, so
  * `npm run dev` works with zero setup. Both run the same SQL migrations.
  */
-export async function openDatabase(opts: { databaseUrl?: string; dataDir: string; ssl?: boolean; migrationsDir: string }): Promise<DbHandle> {
+export async function openDatabase(opts: {
+  databaseUrl?: string;
+  dataDir: string;
+  ssl?: boolean;
+  migrationsDir: string;
+  /** Reports connection trouble (retries at startup, dropped idle connections). */
+  warn?: (message: string) => void;
+  /** Startup attempts before giving up (the database may still be booting). */
+  attempts?: number;
+}): Promise<DbHandle> {
+  const warn = opts.warn ?? ((m: string) => console.warn(m));
   if (opts.databaseUrl) {
     const { default: pg } = await import('pg');
     const { drizzle } = await import('drizzle-orm/node-postgres');
@@ -26,10 +36,29 @@ export async function openDatabase(opts: { databaseUrl?: string; dataDir: string
     const pool = new pg.Pool({
       connectionString: opts.databaseUrl,
       max: 10,
+      connectionTimeoutMillis: 10_000,
       ssl: opts.ssl ? { rejectUnauthorized: false } : undefined,
     });
+    // An idle client can lose its connection (database restart, pooler timeout).
+    // pg reports that on the pool; without a listener it would crash the server.
+    pool.on('error', (err) => warn(`database connection lost: ${err.message}`));
     const db = drizzle({ client: pool, schema });
-    await migrate(db, { migrationsFolder: opts.migrationsDir });
+    const attempts = Math.max(1, opts.attempts ?? 8);
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await migrate(db, { migrationsFolder: opts.migrationsDir });
+        break;
+      } catch (err) {
+        if (attempt >= attempts) {
+          await pool.end().catch(() => {});
+          throw err;
+        }
+        const wait = Math.min(8000, 500 * 2 ** (attempt - 1));
+        const cause = (err as Error & { cause?: Error }).cause ?? (err as Error);
+        warn(`database not ready (${cause.message || String(cause)}); retrying in ${wait} ms`);
+        await new Promise((r) => setTimeout(r, wait));
+      }
+    }
     return {
       db: db as unknown as Database,
       kind: 'postgres',

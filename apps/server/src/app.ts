@@ -33,6 +33,7 @@ export async function buildApp(config: ServerConfig): Promise<App> {
     dataDir: config.dataDir,
     ssl: config.databaseSsl,
     migrationsDir: config.migrationsDir,
+    warn: (m) => fastify.log.warn(m),
   });
   fastify.log.info(`database: ${db.kind}${db.kind === 'pglite' ? ` (${config.dataDir})` : ''}`);
 
