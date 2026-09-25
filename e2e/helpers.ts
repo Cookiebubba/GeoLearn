@@ -80,7 +80,9 @@ export async function touchPlace(page: Page, ctx: BrowserContext, id: string): P
   await touch('touchEnd', []);
   await page.waitForTimeout(80);
   await cdp.detach();
-  return (await info(page, id)).placed;
+  const final = await info(page, id);
+  if (!final.placed) console.log(`[touchPlace] ${id} missed`, JSON.stringify({ a, b, c, final }));
+  return final.placed;
 }
 
 /** Drags a piece home with the mouse. */
@@ -99,5 +101,7 @@ export async function mousePlace(page: Page, id: string): Promise<boolean> {
   }
   await page.mouse.up();
   await page.waitForTimeout(80);
-  return (await info(page, id)).placed;
+  const final = await info(page, id);
+  if (!final.placed) console.log(`[mousePlace] ${id} missed`, JSON.stringify({ a, final }));
+  return final.placed;
 }

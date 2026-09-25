@@ -19,6 +19,8 @@ interface Ptr {
 }
 
 const LONG_PRESS_MS = 280;
+const EDGE_DWELL_MS = 220;
+const EDGE_RAMP_MS = 350;
 const PINCH_GRACE_MS = 150;
 
 /**
@@ -72,6 +74,13 @@ export class InputController {
     const key = (e: KeyboardEvent) => this.key(e);
     window.addEventListener('keydown', key);
     this.cleanup.push(() => window.removeEventListener('keydown', key));
+    // Browsers only let audio start from a finger *lifting* (touchend / click),
+    // not from the touch going down, so unlock on those too (HUD taps included).
+    const unlock = () => this.engine.unlockAudio();
+    for (const type of ['touchend', 'click', 'keydown'] as const) {
+      document.addEventListener(type, unlock, { capture: true, passive: true });
+      this.cleanup.push(() => document.removeEventListener(type, unlock, { capture: true }));
+    }
   }
 
   detach() {
@@ -268,6 +277,7 @@ export class InputController {
   }
 
   private up(e: PointerEvent, cancelled: boolean) {
+    if (!cancelled) this.engine.unlockAudio();
     const p = this.ptrs.get(e.pointerId);
     if (!p) return;
     this.ptrs.delete(p.id);
@@ -355,10 +365,16 @@ export class InputController {
     this.edgeV = { x: push.x * speed, y: push.y * speed };
   }
 
-  /** Auto-pans while a held piece is pushed against a screen edge (easing in). */
+  /**
+   * Auto-pans while a held piece is pushed against a screen edge. It waits a
+   * moment first (so dropping a piece near an edge never nudges the table),
+   * then eases in.
+   */
   update(dt: number): boolean {
     if (this.holdId === null || (!this.edgeV.x && !this.edgeV.y)) return false;
-    const ramp = Math.min(1, (performance.now() - this.edgeSince) / 280);
+    const t = performance.now() - this.edgeSince - EDGE_DWELL_MS;
+    if (t <= 0) return true;
+    const ramp = Math.min(1, t / EDGE_RAMP_MS);
     const k = ramp * ramp;
     this.engine.camera.panBy(-this.edgeV.x * k * dt, -this.edgeV.y * k * dt);
     return true;

@@ -93,7 +93,8 @@ export class SoundEngine {
       src.connect(ctx.destination);
       src.start();
     }
-    if (this.ctx.state === 'suspended') void this.ctx.resume();
+    // iOS also reports 'interrupted' after a call or app switch.
+    if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') void this.ctx.resume().catch(() => {});
   }
 
   setVolume(v: number) {
