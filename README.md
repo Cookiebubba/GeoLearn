@@ -141,6 +141,25 @@ With nginx, the `/ws` location needs `proxy_http_version 1.1;`, `proxy_set_heade
 
 You can also run `docker build -t geolearn . && docker run -p 8787:8787 -e DATABASE_URL=… geolearn` directly. If Docker Hub rate-limits you, pass `--build-arg NODE_IMAGE=mirror.gcr.io/library/node:22-bookworm-slim`.
 
+### Cloudflare (in front of your server)
+
+The best way to use Cloudflare is in front of the server that runs GeoLearn, such as your VPS. Cloudflare serves the website files from its network, with caching, HTTPS and DDoS protection. It passes live games (WebSockets) straight through to your server. Nothing in the code needs to change.
+
+Pick one of these:
+
+- **Cloudflare Tunnel.** Nothing needs to be opened on the server, and it doesn't need its own certificate.
+  1. In the Cloudflare dashboard, go to **Zero Trust → Networks → Tunnels** and create a tunnel.
+  2. Run the install command it shows on your server.
+  3. Add a public hostname, such as `geolearn.example.com`, with the service `http://localhost:8787`. You don't need Caddy with a tunnel.
+- **Proxied DNS.**
+  1. Add an `A` record pointing at the server with the orange cloud on.
+  2. Run Caddy on the server, as shown above.
+  3. Set the SSL/TLS mode to **Full (strict)**. If Caddy can't get its certificate, switch the record to DNS only until it has one, then turn the proxy back on.
+
+WebSockets are enabled by default on Cloudflare. The server reads each player's real address from Cloudflare's `CF-Connecting-IP` header, so the per-IP connection limit counts players separately.
+
+**Don't use Cloudflare Pages or Workers on their own.** They would publish only the website. The maps, names, leaderboards and live games all come from the Node server, so every map would fail to load.
+
 ### Configuration
 
 Every setting is optional. See `.env.example`.

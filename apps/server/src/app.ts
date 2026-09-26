@@ -50,7 +50,10 @@ export async function buildApp(config: ServerConfig): Promise<App> {
   // A generous cap per address (whole classrooms can share one IP).
   const socketsPerIp = new Map<string, number>();
   fastify.get('/ws', { websocket: true }, (socket, req) => {
-    const ip = req.ip;
+    // Behind Cloudflare the visitor's own address arrives in CF-Connecting-IP
+    // (otherwise every player would look like one of Cloudflare's servers).
+    const cf = config.trustProxy ? req.headers['cf-connecting-ip'] : undefined;
+    const ip = typeof cf === 'string' && cf ? cf : req.ip;
     const open = (socketsPerIp.get(ip) ?? 0) + 1;
     if (open > config.maxSocketsPerIp) {
       socket.close(1013, 'Too many connections');
