@@ -1,5 +1,7 @@
 # GeoLearn
 
+<a href="https://buymeacoffee.com/brandynships"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="41"></a>
+
 Calm geography games you can play alone or with friends. You don't need an account, just a name.
 
 The first game is **Map Puzzle**. You get an empty continent and every country is a loose piece lying around it. You drag the pieces into place until the map is whole. Everyone in the room sees every piece move in real time. Whoever is holding a piece controls it, and everyone else can grab any other piece.
